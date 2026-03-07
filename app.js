@@ -85,9 +85,8 @@
   // Service Worker registration reference
   let _swRegistration = null;
   // ---- Web Push設定 ----
-  // ※ ここにVAPID公開鍵とPushサーバーURLを設定してください
+  // ※ PushサーバーURLのみ設定（公開鍵はサーバーから自動取得）
   const PUSH_CONFIG = {
-    vapidPublicKey: 'BPVl4lYlWjgwklhy9wcvSH7R_X73QYXZ8jufb9QtMVrDLDVySnTPQ5DbfWGSuXYlW837UYbuDe1nG3M5QP4QLR4',
     pushServerUrl: 'https://push-server.tz5jqbgcp7.workers.dev',
   };
   let longPressTimer = null, longPressTriggered = false;
@@ -373,7 +372,7 @@
 
   // ---- Web Push購読 ----
   async function subscribeToPush() {
-    if (!PUSH_CONFIG.vapidPublicKey || !PUSH_CONFIG.pushServerUrl) {
+    if (!PUSH_CONFIG.pushServerUrl) {
       showToast('⚠️ Push設定が未完了です');
       return false;
     }
@@ -394,8 +393,14 @@
         return true;
       }
 
-      // VAPID公開鍵をUint8Arrayに変換
-      const vapidKey = urlBase64ToUint8Array(PUSH_CONFIG.vapidPublicKey);
+      // サーバーからVAPID公開鍵を取得
+      const keyRes = await fetch(PUSH_CONFIG.pushServerUrl + '/vapid-key');
+      const keyData = await keyRes.json();
+      if (!keyData.publicKey) {
+        showToast('❌ サーバーから公開鍵を取得できませんでした');
+        return false;
+      }
+      const vapidKey = urlBase64ToUint8Array(keyData.publicKey);
 
       // Push購読を作成
       subscription = await reg.pushManager.subscribe({
