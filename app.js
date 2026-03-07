@@ -2094,13 +2094,19 @@
       const bp = $('#bg-preview-box'); bp.innerHTML = '<span class="bg-placeholder">画像未設定</span>'; bp.style.backgroundImage = '';
     });
 
-    // Settings - Notification permission
-    $('#notify-permission-btn').addEventListener('click', () => {
+    // Settings - Notification permission + Push購読
+    $('#notify-permission-btn').addEventListener('click', async () => {
       if (!('Notification' in window)) { showToast('❌ このブラウザは通知非対応です'); return; }
-      Notification.requestPermission().then(p => {
-        $('#notify-status').textContent = p === 'granted' ? '✅ 通知は許可されています' : '❌ 通知は拒否されました';
-        if (p === 'granted') showToast('🔔 通知が有効になりました');
-      });
+      // まずブラウザ通知許可
+      const p = await Notification.requestPermission();
+      $('#notify-status').textContent = p === 'granted' ? '✅ 通知は許可されています' : '❌ 通知は拒否されました';
+      if (p !== 'granted') return;
+      // Push購読（PUSH_CONFIGが設定されている場合のみ）
+      if (PUSH_CONFIG.vapidPublicKey && PUSH_CONFIG.pushServerUrl) {
+        await subscribeToPush();
+      } else {
+        showToast('🔔 通知が有効になりました（アプリ内通知のみ）');
+      }
     });
 
     // Settings - Tabs
