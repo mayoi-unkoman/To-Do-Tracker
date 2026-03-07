@@ -87,8 +87,8 @@
   // ---- Web Push設定 ----
   // ※ ここにVAPID公開鍵とPushサーバーURLを設定してください
   const PUSH_CONFIG = {
-    vapidPublicKey: '',  // vapid-keygen.htmlで生成した公開鍵を貼り付け
-    pushServerUrl: '',   // Cloudflare WorkerのURLを貼り付け（例: https://push-server.xxx.workers.dev）
+    vapidPublicKey: 'BPVl4lYlWjgwklhy9wcvSH7R_X73QYXZ8jufb9QtMVrDLDVySnTPQ5DbfWGSuXYlW837UYbuDe1nG3M5QP4QLR4',
+    pushServerUrl: 'https://push-server.tz5jqbgcp7.workers.dev',
   };
   let longPressTimer = null, longPressTriggered = false;
 
