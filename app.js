@@ -378,10 +378,9 @@
       return false;
     }
     try {
-      // 通知許可を取得
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        showToast('❌ 通知が許可されていません');
+      // 通知許可を確認（呼び出し元で既にrequestPermission済み）
+      if (Notification.permission !== 'granted') {
+        showToast('❌ 通知が許可されていません。設定から許可してください');
         return false;
       }
 
