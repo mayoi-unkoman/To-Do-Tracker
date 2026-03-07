@@ -454,6 +454,25 @@
     }
   }
 
+  // ---- 通知スケジュールをサーバーに同期 ----
+  let _syncTimeout = null;
+  function syncNotifySchedules() {
+    if (!PUSH_CONFIG.pushServerUrl) return;
+    if (_syncTimeout) clearTimeout(_syncTimeout);
+    _syncTimeout = setTimeout(async () => {
+      try {
+        const schedules = state.tasks
+          .filter(t => t.notifyTime)
+          .map(t => ({ time: t.notifyTime, name: t.name, emoji: t.emoji || '🔔' }));
+        await fetch(PUSH_CONFIG.pushServerUrl + '/schedules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ schedules })
+        });
+      } catch (e) { /* 同期失敗は無視 */ }
+    }, 2000);
+  }
+
   // base64url文字列をUint8Arrayに変換
   function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -1364,7 +1383,7 @@
       notifyTime: $('#task-notify-time').value || '',
       lastNotifiedDate: null,
     });
-    resetCelebration(); save(); closeModal('modal-overlay'); renderAll(); showToast('✨ タスクを追加しました');
+    resetCelebration(); save(); syncNotifySchedules(); closeModal('modal-overlay'); renderAll(); showToast('✨ タスクを追加しました');
   }
   function editTask(e) {
     e.preventDefault();
@@ -1383,7 +1402,7 @@
       t.lastNotifiedDate = null; // 通知時刻が変更されたらリセット
     }
     t.notifyTime = newNotifyTime;
-    save(); closeModal('edit-modal-overlay'); renderAll(); showToast('📝 保存しました');
+    save(); syncNotifySchedules(); closeModal('edit-modal-overlay'); renderAll(); showToast('📝 保存しました');
   }
   let deleteConfirmPending = false;
   function deleteTask(e) {
@@ -1400,7 +1419,7 @@
     const id = $('#edit-task-id').value;
     state.tasks = state.tasks.filter(t => t.id !== id);
     Object.keys(state.records).forEach(k => { if (state.records[k] && state.records[k][id] !== undefined) delete state.records[k][id]; });
-    save(); closeModal('edit-modal-overlay'); renderAll(); showToast('🗑️ 削除しました');
+    save(); syncNotifySchedules(); closeModal('edit-modal-overlay'); renderAll(); showToast('🗑️ 削除しました');
     btn.textContent = '削除'; btn.style.background = '';
   }
   function addScheduledTask(e) {
