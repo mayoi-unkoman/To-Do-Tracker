@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a1a12">
+  <title>Habit Tracker — 習慣トラッカー</title>
+  <meta name="description" content="毎日の習慣を可視化し、連続達成を記録するダークテーマの習慣管理アプリ">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.jpg">
+  <link rel="icon" type="image/jpeg" href="icon.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div id="app">
+
+    <!-- ===== メインビュー ===== -->
+    <div id="main-view" class="view active">
+      <header class="header">
+        <div class="header-left">
+          <div class="header-year" id="header-year"></div>
+          <div class="header-date-row">
+            <span class="header-month" id="header-month"></span>
+            <span class="header-day" id="header-day"></span>
+            <span class="header-weekday" id="header-weekday"></span>
+          </div>
+        </div>
+        <div class="header-right">
+          <button class="icon-btn" id="settings-btn" aria-label="設定">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+            </svg>
+          </button>
+          <div class="streak-badge" id="streak-badge">
+            <span class="streak-icon">🔥</span>
+            <span class="streak-count" id="streak-count">0</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="week-calendar" id="week-calendar"></div>
+
+      <div class="filter-bar">
+        <button class="filter-chip active" data-filter="all">すべて</button>
+        <div id="category-filters"></div>
+      </div>
+
+      <div class="daily-progress" id="daily-progress">
+        <div class="progress-info">
+          <span class="progress-label">今日の進捗</span>
+          <span class="progress-count" id="progress-count">0/0</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="task-list" id="task-list"></div>
+
+      <nav class="bottom-nav">
+        <button class="nav-btn active" data-view="main-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+          </svg>
+          <span>タスク</span>
+        </button>
+        <button class="nav-btn" data-view="calendar-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <span>カレンダー</span>
+        </button>
+        <button class="nav-btn" data-view="stats-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="12" width="4" height="9" rx="1" />
+            <rect x="10" y="7" width="4" height="14" rx="1" />
+            <rect x="17" y="3" width="4" height="18" rx="1" />
+          </svg>
+          <span>統計</span>
+        </button>
+        <button class="nav-btn" data-view="memo-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+          <span>メモ</span>
+        </button>
+      </nav>
+
+      <button class="fab" id="fab-add" aria-label="タスクを追加">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- ===== カレンダービュー ===== -->
+    <div id="calendar-view" class="view">
+      <header class="header">
+        <div class="header-left">
+          <div class="header-year" id="cal-year"></div>
+          <div class="header-date-row">
+            <span class="header-month" id="cal-month"></span>
+            <span class="stats-label">年間カレンダー</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="stats-nav-arrows">
+            <button class="arrow-btn" id="cal-prev">‹</button>
+            <button class="arrow-btn" id="cal-next">›</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="cal-content" id="cal-content"></div>
+
+      <nav class="bottom-nav">
+        <button class="nav-btn" data-view="main-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+          </svg>
+          <span>タスク</span>
+        </button>
+        <button class="nav-btn active" data-view="calendar-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <span>カレンダー</span>
+        </button>
+        <button class="nav-btn" data-view="stats-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="12" width="4" height="9" rx="1" />
+            <rect x="10" y="7" width="4" height="14" rx="1" />
+            <rect x="17" y="3" width="4" height="18" rx="1" />
+          </svg>
+          <span>統計</span>
+        </button>
+        <button class="nav-btn" data-view="memo-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+          <span>メモ</span>
+        </button>
+      </nav>
+
+      <button class="fab" id="cal-fab-add" aria-label="予定を追加">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- ===== 統計ビュー ===== -->
+    <div id="stats-view" class="view">
+      <header class="header">
+        <div class="header-left">
+          <div class="header-year" id="stats-year"></div>
+          <div class="header-date-row">
+            <span class="header-month" id="stats-month"></span>
+            <span class="stats-label">月間統計</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="stats-nav-arrows">
+            <button class="arrow-btn" id="stats-prev">‹</button>
+            <button class="arrow-btn" id="stats-next">›</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="stats-content" id="stats-content">
+        <div class="stats-overview">
+          <div class="stat-card">
+            <div class="stat-value" id="stat-total">0</div>
+            <div class="stat-label">総実行回数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-rate">0%</div>
+            <div class="stat-label">達成率</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-max-streak">0</div>
+            <div class="stat-label">最大ストリーク</div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">日別達成率</h3><canvas id="daily-chart" width="350" height="180"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">タスク別達成率</h3>
+          <div id="task-stats-list"></div>
+        </div>
+      </div>
+
+      <nav class="bottom-nav">
+        <button class="nav-btn" data-view="main-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+          </svg>
+          <span>タスク</span>
+        </button>
+        <button class="nav-btn" data-view="calendar-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <span>カレンダー</span>
+        </button>
+        <button class="nav-btn active" data-view="stats-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="12" width="4" height="9" rx="1" />
+            <rect x="10" y="7" width="4" height="14" rx="1" />
+            <rect x="17" y="3" width="4" height="18" rx="1" />
+          </svg>
+          <span>統計</span>
+        </button>
+        <button class="nav-btn" data-view="memo-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+          <span>メモ</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- ===== タスク追加モーダル ===== -->
+    <div class="modal-overlay" id="modal-overlay">
+      <div class="modal" id="add-modal">
+        <div class="modal-header">
+          <h2>新しい習慣</h2>
+          <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <form id="task-form">
+          <div class="form-group">
+            <label>タスク名 <span class="required">*</span></label>
+            <div class="input-with-emoji">
+              <button type="button" class="emoji-picker-btn" id="emoji-picker-btn">😊</button>
+              <input type="text" id="task-name" placeholder="例：台本読み" required>
+            </div>
+            <div class="emoji-panel" id="emoji-panel" style="display:none;">
+              <div class="emoji-cats" id="emoji-cats"></div>
+              <div class="emoji-grid" id="emoji-grid"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>カスタムアイコン</label>
+            <div class="custom-icon-row">
+              <div class="custom-icon-preview" id="custom-icon-preview">なし</div>
+              <input type="file" id="custom-icon-upload" accept="image/*" hidden>
+              <button type="button" class="btn-sm" id="custom-icon-btn">画像を選択</button>
+              <button type="button" class="btn-sm btn-sm-dim" id="custom-icon-clear">クリア</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>実行タイミング</label>
+            <div class="timing-options">
+              <label class="radio-chip"><input type="radio" name="timing" value="いつでも" checked><span>いつでも</span></label>
+              <label class="radio-chip"><input type="radio" name="timing" value="毎日"><span>毎日</span></label>
+              <label class="radio-chip"><input type="radio" name="timing" value="寝る前に"><span>寝る前に</span></label>
+              <label class="radio-chip"><input type="radio" name="timing" value="朝"><span>朝</span></label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>頻度</label>
+            <div class="frequency-row">
+              <label class="radio-chip"><input type="radio" name="frequency" value="毎日" checked><span>毎日</span></label>
+              <label class="radio-chip"><input type="radio" name="frequency" value="週"><span>週○回</span></label>
+              <input type="number" id="freq-count" class="freq-input" min="1" max="7" value="3" style="display:none;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>リンクURL</label>
+            <input type="url" id="task-url" placeholder="https://...">
+          </div>
+          <div class="form-group">
+            <label>カテゴリ</label>
+            <input type="text" id="task-category" placeholder="例：健康管理">
+          </div>
+          <div class="form-group">
+            <label>通知時間（任意）</label>
+            <input type="time" id="task-notify-time" class="time-input">
+          </div>
+          <button type="submit" class="btn-submit">追加する</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===== タスク編集モーダル ===== -->
+    <div class="modal-overlay" id="edit-modal-overlay">
+      <div class="modal" id="edit-modal">
+        <div class="modal-header">
+          <h2>タスクを編集</h2>
+          <button class="modal-close" id="edit-modal-close">&times;</button>
+        </div>
+        <form id="edit-task-form">
+          <input type="hidden" id="edit-task-id">
+          <div class="form-group">
+            <label>タスク名 <span class="required">*</span></label>
+            <div class="input-with-emoji">
+              <button type="button" class="emoji-picker-btn" id="edit-emoji-picker-btn">😊</button>
+              <input type="text" id="edit-task-name" placeholder="例：台本読み" required>
+            </div>
+            <div class="emoji-panel" id="edit-emoji-panel" style="display:none;">
+              <div class="emoji-cats" id="edit-emoji-cats"></div>
+              <div class="emoji-grid" id="edit-emoji-grid"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>カスタムアイコン</label>
+            <div class="custom-icon-row">
+              <div class="custom-icon-preview" id="edit-custom-icon-preview">なし</div>
+              <input type="file" id="edit-custom-icon-upload" accept="image/*" hidden>
+              <button type="button" class="btn-sm" id="edit-custom-icon-btn">画像を選択</button>
+              <button type="button" class="btn-sm btn-sm-dim" id="edit-custom-icon-clear">クリア</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>実行タイミング</label>
+            <div class="timing-options">
+              <label class="radio-chip"><input type="radio" name="edit-timing" value="いつでも"><span>いつでも</span></label>
+              <label class="radio-chip"><input type="radio" name="edit-timing" value="毎日"><span>毎日</span></label>
+              <label class="radio-chip"><input type="radio" name="edit-timing" value="寝る前に"><span>寝る前に</span></label>
+              <label class="radio-chip"><input type="radio" name="edit-timing" value="朝"><span>朝</span></label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>頻度</label>
+            <div class="frequency-row">
+              <label class="radio-chip"><input type="radio" name="edit-frequency" value="毎日"><span>毎日</span></label>
+              <label class="radio-chip"><input type="radio" name="edit-frequency" value="週"><span>週○回</span></label>
+              <input type="number" id="edit-freq-count" class="freq-input" min="1" max="7" value="3"
+                style="display:none;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>リンクURL</label>
+            <input type="url" id="edit-task-url" placeholder="https://...">
+          </div>
+          <div class="form-group">
+            <label>カテゴリ</label>
+            <input type="text" id="edit-task-category" placeholder="例：健康管理">
+          </div>
+          <div class="form-group">
+            <label>通知時間（任意）</label>
+            <input type="time" id="edit-task-notify-time" class="time-input">
+          </div>
+          <div class="form-actions-row">
+            <button type="button" class="btn-delete" id="edit-delete-btn">削除</button>
+            <button type="submit" class="btn-submit">保存する</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===== 設定モーダル ===== -->
+    <div class="modal-overlay" id="settings-overlay">
+      <div class="modal settings-modal">
+        <div class="modal-header">
+          <h2>⚙️ 設定</h2>
+          <button class="modal-close" id="settings-close">&times;</button>
+        </div>
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-stab="bg">🖼️ 背景</button>
+          <button class="settings-tab" data-stab="notify">🔔 通知</button>
+          <button class="settings-tab" data-stab="theme">🎨 テーマ</button>
+          <button class="settings-tab" data-stab="data">💾 データ</button>
+        </div>
+        <!-- 背景タブ -->
+        <div class="settings-panel active" id="stab-bg">
+          <div class="bg-preview-box" id="bg-preview-box">
+            <span class="bg-placeholder">画像未設定</span>
+          </div>
+          <input type="file" id="bg-upload" accept="image/*" hidden>
+          <div class="settings-btn-row">
+            <button type="button" class="btn-sm" id="bg-upload-btn">画像を選択</button>
+            <button type="button" class="btn-sm btn-sm-dim" id="bg-remove-btn">背景を削除</button>
+          </div>
+          <div class="settings-divider"></div>
+          <h4>🎲 ランダム背景</h4>
+          <p class="settings-desc">複数の背景画像を登録し、起動時にランダム表示します。</p>
+          <div class="settings-btn-row">
+            <label class="toggle-label">
+              <input type="checkbox" id="bg-random-toggle">
+              <span>ランダム表示ON</span>
+            </label>
+          </div>
+          <input type="file" id="bg-multi-upload" accept="image/*" hidden>
+          <button type="button" class="btn-sm" id="bg-multi-add-btn">＋ 画像を追加</button>
+          <div class="bg-multi-list" id="bg-multi-list"></div>
+        </div>
+        <!-- 通知タブ -->
+        <div class="settings-panel" id="stab-notify" style="display:none">
+          <p class="settings-desc">タスクに通知時間を設定すると、未達成時にリマインダーが届きます。</p>
+          <button type="button" class="btn-submit" id="notify-permission-btn">通知を許可する</button>
+          <p class="settings-note" id="notify-status"></p>
+          <div class="settings-divider"></div>
+          <h4>オリジナルメッセージ</h4>
+          <p class="settings-desc">「〇〇」にタスク名が自動挿入されます</p>
+          <div class="msg-input-row">
+            <input type="text" id="custom-msg-input" placeholder="例：まだ「〇〇」やってないの？">
+            <button type="button" class="btn-sm" id="custom-msg-add">追加</button>
+          </div>
+          <div id="custom-msg-list" class="custom-msg-list"></div>
+        </div>
+        <!-- テーマタブ -->
+        <div class="settings-panel" id="stab-theme" style="display:none">
+          <h4>プリセット</h4>
+          <div class="theme-presets" id="theme-presets"></div>
+          <div class="settings-divider"></div>
+          <h4>カスタムカラー</h4>
+          <div class="color-picker">
+            <div class="picker-row">
+              <div class="picker-preview" id="picker-preview"></div>
+              <div class="picker-sliders">
+                <label>色相<input type="range" id="picker-h" min="0" max="360" value="142" class="hue-slider"></label>
+                <label>彩度<input type="range" id="picker-s" min="10" max="100" value="71"></label>
+                <label>明度<input type="range" id="picker-l" min="25" max="80" value="45"></label>
+              </div>
+            </div>
+          </div>
+          <div class="settings-btn-row">
+            <button type="button" class="btn-sm" id="picker-apply">適用</button>
+            <button type="button" class="btn-sm" id="picker-save">保存</button>
+          </div>
+          <div class="saved-colors" id="saved-colors"></div>
+          <div class="settings-divider"></div>
+          <h4>タスクサイズ</h4>
+          <div class="task-size-row">
+            <span>小</span>
+            <input type="range" id="task-size-slider" min="80" max="130" value="100">
+            <span>大</span>
+            <button type="button" class="btn-sm" id="task-size-reset">リセット</button>
+          </div>
+          <div class="settings-divider"></div>
+          <h4>タスク透明度</h4>
+          <div class="task-size-row">
+            <span>透</span>
+            <input type="range" id="task-opacity-slider" min="30" max="100" value="100">
+            <span>濃</span>
+          </div>
+        </div>
+        <!-- データタブ -->
+        <div class="settings-panel" id="stab-data" style="display:none">
+          <p class="settings-desc">データのバックアップと復元ができます。</p>
+          <div class="settings-btn-row">
+            <button type="button" class="btn-sm" id="data-export-btn">エクスポート</button>
+            <button type="button" class="btn-sm" id="data-import-btn">インポート</button>
+            <input type="file" id="data-import-file" accept=".json" hidden>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== カレンダー予定追加モーダル ===== -->
+    <div class="modal-overlay" id="cal-task-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>📅 予定を追加</h2>
+          <button class="modal-close" id="cal-task-close">&times;</button>
+        </div>
+        <form id="cal-task-form">
+          <div class="form-group">
+            <label>日付 <span class="required">*</span></label>
+            <input type="date" id="cal-task-date" required class="time-input">
+          </div>
+          <div class="form-group">
+            <label>タスク名 <span class="required">*</span></label>
+            <div class="input-with-emoji">
+              <button type="button" class="emoji-picker-btn" id="cal-emoji-btn">😊</button>
+              <input type="text" id="cal-task-name" placeholder="例：歯医者" required>
+            </div>
+            <div class="emoji-panel" id="cal-emoji-panel" style="display:none;">
+              <div class="emoji-cats" id="cal-emoji-cats"></div>
+              <div class="emoji-grid" id="cal-emoji-grid"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>タイミング</label>
+            <div class="timing-options">
+              <label class="radio-chip"><input type="radio" name="cal-timing" value="いつでも"
+                  checked><span>いつでも</span></label>
+              <label class="radio-chip"><input type="radio" name="cal-timing" value="毎日"><span>毎日</span></label>
+              <label class="radio-chip"><input type="radio" name="cal-timing" value="朝"><span>朝</span></label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>URL（任意）</label>
+            <input type="url" id="cal-task-url" placeholder="https://...">
+          </div>
+          <div class="form-group">
+            <label>カテゴリ（任意）</label>
+            <input type="text" id="cal-task-category" list="global-category-list" placeholder="例：通院">
+          </div>
+          <div class="form-group">
+            <label>通知時間（任意）</label>
+            <input type="time" id="cal-task-notify-time" class="time-input">
+          </div>
+          <div class="form-group">
+            <label>メモ（任意）</label>
+            <textarea id="cal-task-memo" class="memo-textarea" placeholder="メモを入力…" rows="2"></textarea>
+          </div>
+          <button type="submit" class="btn-submit">予定を登録</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===== 日付詳細モーダル ===== -->
+    <div class="modal-overlay" id="day-detail-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="day-detail-title">2月25日</h2>
+          <button class="modal-close" id="day-detail-close">&times;</button>
+        </div>
+        <div id="day-detail-content"></div>
+        <button type="button" class="btn-submit" id="day-detail-add-btn" style="margin-top:12px;">＋ この日に予定を追加</button>
+      </div>
+    </div>
+
+    <!-- カレンダー予定編集モーダル -->
+    <div class="modal-overlay" id="edit-scheduled-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>📝 予定を編集</h2>
+          <button class="modal-close" id="edit-scheduled-close">&times;</button>
+        </div>
+        <input type="hidden" id="edit-scheduled-id">
+        <div class="form-group">
+          <label>日付 <span class="required">*</span></label>
+          <input type="date" id="edit-scheduled-date" required class="time-input">
+        </div>
+        <div class="form-group">
+          <label>タスク名 <span class="required">*</span></label>
+          <input type="text" id="edit-scheduled-name" required>
+        </div>
+        <div class="form-group">
+          <label>タイミング</label>
+          <div class="timing-options">
+            <label class="radio-chip"><input type="radio" name="edit-sch-timing" value="いつでも"
+                checked><span>いつでも</span></label>
+            <label class="radio-chip"><input type="radio" name="edit-sch-timing" value="毎日"><span>毎日</span></label>
+            <label class="radio-chip"><input type="radio" name="edit-sch-timing" value="朝"><span>朝</span></label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>URL（任意）</label>
+          <input type="url" id="edit-scheduled-url" placeholder="https://...">
+        </div>
+        <div class="form-group">
+          <label>カテゴリ（任意）</label>
+          <input type="text" id="edit-scheduled-category" list="global-category-list" placeholder="例：通院">
+        </div>
+        <div class="form-group">
+          <label>通知時間（任意）</label>
+          <input type="time" id="edit-scheduled-notify" class="time-input">
+        </div>
+        <div class="form-group">
+          <label>メモ（任意）</label>
+          <textarea id="edit-scheduled-memo" class="memo-textarea" placeholder="メモを入力…" rows="2"></textarea>
+        </div>
+        <div class="form-actions-row">
+          <button type="button" class="btn-delete" id="edit-scheduled-delete">削除</button>
+          <button type="button" class="btn-submit" id="edit-scheduled-save">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- グローバルカテゴリデータリスト -->
+    <datalist id="global-category-list"></datalist>
+    <!-- メモビュー -->
+    <div class="view" id="memo-view">
+      <header class="header">
+        <div class="header-left">
+          <div class="header-date-row">
+            <span class="header-month">📝 メモ一覧</span>
+          </div>
+        </div>
+      </header>
+      <div class="filter-bar" id="memo-filter-bar"></div>
+      <div class="cal-content" id="memo-content">
+        <div id="memo-history-list"></div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="nav-btn" data-view="main-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+          </svg>
+          <span>タスク</span>
+        </button>
+        <button class="nav-btn" data-view="calendar-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <span>カレンダー</span>
+        </button>
+        <button class="nav-btn" data-view="stats-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="12" width="4" height="9" rx="1" />
+            <rect x="10" y="7" width="4" height="14" rx="1" />
+            <rect x="17" y="3" width="4" height="18" rx="1" />
+          </svg>
+          <span>統計</span>
+        </button>
+        <button class="nav-btn active" data-view="memo-view">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+          <span>メモ</span>
+        </button>
+      </nav>
+      <button class="fab" id="fab-memo-add" aria-label="メモを追加">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- フリーメモモーダル -->
+    <div class="modal-overlay" id="general-memo-overlay">
+      <div class="modal memo-modal">
+        <div class="modal-header">
+          <h2>📝 新規メモ</h2>
+          <button class="modal-close" id="general-memo-close">&times;</button>
+        </div>
+        <div class="form-group">
+          <label>日付</label>
+          <input type="date" id="general-memo-date" class="time-input">
+        </div>
+        <div class="form-group">
+          <label>タイトル</label>
+          <input type="text" id="general-memo-title" placeholder="メモのタイトル…">
+        </div>
+        <div class="form-group">
+          <label>カテゴリ</label>
+          <input type="text" id="general-memo-category" list="memo-category-list" placeholder="例：日記、アイデア">
+          <datalist id="memo-category-list"></datalist>
+        </div>
+        <div class="form-group">
+          <label>メモの内容</label>
+          <textarea id="general-memo-input" class="memo-textarea" placeholder="今日のひとこと…" rows="4"></textarea>
+        </div>
+        <button type="button" class="btn-submit" id="general-memo-save">保存</button>
+      </div>
+    </div>
+
+    <!-- メモ編集モーダル -->
+    <div class="modal-overlay" id="edit-memo-overlay">
+      <div class="modal memo-modal">
+        <div class="modal-header">
+          <h2>📝 メモを編集</h2>
+          <button class="modal-close" id="edit-memo-close">&times;</button>
+        </div>
+        <input type="hidden" id="edit-memo-id">
+        <input type="hidden" id="edit-memo-date">
+        <input type="hidden" id="edit-memo-type">
+        <div class="form-group">
+          <label>タイトル</label>
+          <input type="text" id="edit-memo-title" placeholder="メモのタイトル…">
+        </div>
+        <div class="form-group">
+          <label>メモの内容</label>
+          <textarea id="edit-memo-input" class="memo-textarea" placeholder="メモの内容…" rows="4"></textarea>
+        </div>
+        <div class="form-actions-row">
+          <button type="button" class="btn-delete" id="edit-memo-delete">削除</button>
+          <button type="button" class="btn-submit" id="edit-memo-save">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- メモモーダル -->
+    <div class="modal-overlay" id="memo-overlay">
+      <div class="modal memo-modal">
+        <div class="modal-header">
+          <h2>📝 メモ</h2>
+          <button class="modal-close" id="memo-close">&times;</button>
+        </div>
+        <p class="settings-desc" id="memo-task-name"></p>
+        <textarea id="memo-input" class="memo-textarea" placeholder="今日のひとこと…" rows="3"></textarea>
+        <button type="button" class="btn-submit" id="memo-save">保存</button>
+      </div>
+    </div>
+
+    <!-- 紙吹雪 -->
+    <canvas id="confetti-canvas"></canvas>
+
+  </div>
+
+  <canvas id="img-canvas" style="display:none;"></canvas>
+  <script src="app.js"></script>
+</body>
+
+</html>
