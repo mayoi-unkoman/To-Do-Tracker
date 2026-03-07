@@ -2106,7 +2106,7 @@
       $('#notify-status').textContent = p === 'granted' ? '✅ 通知は許可されています' : '❌ 通知は拒否されました';
       if (p !== 'granted') return;
       // Push購読（PUSH_CONFIGが設定されている場合のみ）
-      if (PUSH_CONFIG.vapidPublicKey && PUSH_CONFIG.pushServerUrl) {
+      if (PUSH_CONFIG.pushServerUrl) {
         await subscribeToPush();
       } else {
         showToast('🔔 通知が有効になりました（アプリ内通知のみ）');
