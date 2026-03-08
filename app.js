@@ -461,9 +461,15 @@
     if (_syncTimeout) clearTimeout(_syncTimeout);
     _syncTimeout = setTimeout(async () => {
       try {
-        const schedules = state.tasks
+        // 通常タスクのnotifyTime
+        const taskSchedules = state.tasks
           .filter(t => t.notifyTime)
-          .map(t => ({ time: t.notifyTime, name: t.name, emoji: t.emoji || '🔔' }));
+          .map(t => ({ time: t.notifyTime, name: t.name, emoji: t.emoji || '' }));
+        // カレンダータスク(scheduledTasks)のnotifyTime
+        const calSchedules = (state.scheduledTasks || [])
+          .filter(st => st.notifyTime)
+          .map(st => ({ time: st.notifyTime, name: st.name, emoji: st.emoji || '' }));
+        const schedules = [...taskSchedules, ...calSchedules];
         await fetch(PUSH_CONFIG.pushServerUrl + '/schedules', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1439,7 +1445,7 @@
       memo: ($('#cal-task-memo') ? $('#cal-task-memo').value.trim() : ''),
       addedToTasks: false,
     });
-    save(); closeModal('cal-task-overlay');
+    save(); syncNotifySchedules(); closeModal('cal-task-overlay');
     processScheduledTasks();
     renderCalendar(); renderAll();
     showToast('📅 予定を登録しました');
@@ -1831,6 +1837,7 @@
     applyTaskScale();
     applyTaskOpacity();
     renderAll();
+    syncNotifySchedules();
 
     // FAB
     const fab = $('#fab-add');
@@ -2002,7 +2009,7 @@
         st.category = 'カレンダー';
         if ($('#edit-scheduled-notify')) st.notifyTime = $('#edit-scheduled-notify').value || '';
         if ($('#edit-scheduled-memo')) st.memo = $('#edit-scheduled-memo').value.trim();
-        save();
+        save(); syncNotifySchedules();
         closeModal('edit-scheduled-overlay');
         renderCalendar(); renderAll();
         showToast('📝 予定を更新しました');
