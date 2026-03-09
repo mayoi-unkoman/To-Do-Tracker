@@ -3,7 +3,7 @@
    通知表示 + Push通知受信
    ======================================== */
 
-const CACHE_NAME = 'habit-tracker-v3';
+const CACHE_NAME = 'habit-tracker-v4';
 const ASSETS = [
     './index.html',
     './app.js',
@@ -30,7 +30,7 @@ self.addEventListener('activate', event => {
     self.clients.claim();
 });
 
-// ---- フェッチ（iOS Safari対応） ----
+// ---- フェッチ（ネットワーク優先） ----
 self.addEventListener('fetch', event => {
     const req = event.request;
     if (req.method !== 'GET') return;
@@ -51,11 +51,13 @@ self.addEventListener('fetch', event => {
         return;
     }
 
+    // ネットワーク優先、成功したらキャッシュ更新、失敗時はキャッシュ使用
     event.respondWith(
-        caches.match(req).then(cached => {
-            if (cached && !cached.redirected) return cached;
-            return fetch(req);
-        })
+        fetch(req).then(res => {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+            return res;
+        }).catch(() => caches.match(req))
     );
 });
 
