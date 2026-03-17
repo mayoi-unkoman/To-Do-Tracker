@@ -141,7 +141,27 @@
           <div id="drawer-tags"></div>
         </div>
         <div class="drawer-divider"></div>
+        <div class="drawer-section">
+          <div class="drawer-section-title">🚩 優先度</div>
+          <div class="drawer-item" data-drawer-filter="priority:high">
+            <span class="drawer-item-icon" style="color:#ef4444">🚩</span>
+            <span class="drawer-item-label">高</span>
+            <span class="drawer-item-count" id="drawer-pri-high-count">0</span>
+          </div>
+          <div class="drawer-item" data-drawer-filter="priority:medium">
+            <span class="drawer-item-icon" style="color:#f97316">🚩</span>
+            <span class="drawer-item-label">中</span>
+            <span class="drawer-item-count" id="drawer-pri-med-count">0</span>
+          </div>
+          <div class="drawer-item" data-drawer-filter="priority:low">
+            <span class="drawer-item-icon" style="color:#3b82f6">🚩</span>
+            <span class="drawer-item-label">低</span>
+            <span class="drawer-item-count" id="drawer-pri-low-count">0</span>
+          </div>
+        </div>
+        <div class="drawer-divider"></div>
         <div class="drawer-section" id="drawer-categories">
+          <div class="drawer-section-title">📁 カテゴリー <span class="drawer-hint">長押しで削除</span></div>
         </div>
         <div class="drawer-divider"></div>
         <div class="drawer-section">
@@ -157,7 +177,26 @@
     <div id="calendar-view" class="view">
       <header class="header">
         <div class="header-left">
-          <button class="cal-mode-toggle" id="cal-mode-toggle" aria-label="表示切替">☰</button>
+          <div class="cal-mode-dropdown" id="cal-mode-dropdown">
+            <button class="cal-mode-toggle" id="cal-mode-toggle" aria-label="表示切替">☰</button>
+            <div class="cal-mode-menu" id="cal-mode-menu">
+              <div class="cal-mode-option" data-mode="list">
+                <span class="cal-mode-check" id="cal-mode-check-list"></span>
+                <span class="cal-mode-icon">☰</span>
+                <span>リスト</span>
+              </div>
+              <div class="cal-mode-option" data-mode="year">
+                <span class="cal-mode-check" id="cal-mode-check-year"></span>
+                <span class="cal-mode-icon">⊞</span>
+                <span>年</span>
+              </div>
+              <div class="cal-mode-option" data-mode="month">
+                <span class="cal-mode-check" id="cal-mode-check-month"></span>
+                <span class="cal-mode-icon">⊞</span>
+                <span>月</span>
+              </div>
+            </div>
+          </div>
           <span class="cal-title" id="cal-title"></span>
         </div>
         <div class="header-right">
@@ -511,8 +550,22 @@
             </div>
           </div>
           <div class="form-group">
-            <label>リンクURL</label>
-            <input type="url" id="task-url" placeholder="https://...">
+            <label>タグ</label>
+            <input type="text" id="task-tags" placeholder="例：健康, 習慣（カンマ区切り）">
+          </div>
+          <div class="form-group">
+            <label>補足メモ（コツ・意識ポイント）</label>
+            <textarea id="task-description" rows="2" placeholder="実行時の注意点やコツを記録..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="url-toggle-label">
+              <span>リンクURL</span>
+              <button type="button" class="url-toggle-btn" id="url-toggle-btn"
+                onclick="this.closest('.form-group').querySelector('.url-input-wrap').classList.toggle('open');this.classList.toggle('active')">🔗</button>
+            </label>
+            <div class="url-input-wrap">
+              <input type="url" id="task-url" placeholder="https://...">
+            </div>
           </div>
           <div class="form-group">
             <label>カテゴリ</label>
@@ -575,8 +628,22 @@
             </div>
           </div>
           <div class="form-group">
-            <label>リンクURL</label>
-            <input type="url" id="edit-task-url" placeholder="https://...">
+            <label>タグ</label>
+            <input type="text" id="edit-task-tags" placeholder="例：健康, 習慣（カンマ区切り）">
+          </div>
+          <div class="form-group">
+            <label>補足メモ（コツ・意識ポイント）</label>
+            <textarea id="edit-task-description" rows="2" placeholder="実行時の注意点やコツを記録..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="url-toggle-label">
+              <span>リンクURL</span>
+              <button type="button" class="url-toggle-btn" id="edit-url-toggle-btn"
+                onclick="this.closest('.form-group').querySelector('.url-input-wrap').classList.toggle('open');this.classList.toggle('active')">🔗</button>
+            </label>
+            <div class="url-input-wrap">
+              <input type="url" id="edit-task-url" placeholder="https://...">
+            </div>
           </div>
           <div class="form-group">
             <label>カテゴリ</label>
