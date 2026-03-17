@@ -79,6 +79,7 @@
     statsYear: new Date().getFullYear(),
     calMonth: new Date().getMonth(),
     calYear: new Date().getFullYear(),
+    calMode: 'month',
   };
   // 最後にチェックした日付を追跡（日付変更検知用）
   let _lastCheckedDate = todayStr();
@@ -92,14 +93,18 @@
   let longPressTimer = null, longPressTriggered = false;
 
   // ---- Date Utilities ----
-  function todayStr() { return formatDate(new Date()); }
+  function todayStr() {
+    return formatDate(new Date());
+  }
   function formatDate(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
   function parseDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
   function getWeekDays(dateStr) {
     const d = parseDate(dateStr), day = d.getDay(), start = new Date(d);
-    start.setDate(start.getDate() - day);
+    // 月曜起算: 月=0, 火=1, ..., 日=6
+    const mondayOffset = (day === 0) ? 6 : day - 1;
+    start.setDate(start.getDate() - mondayOffset);
     return Array.from({ length: 7 }, (_, i) => { const dd = new Date(start); dd.setDate(dd.getDate() + i); return dd; });
   }
   function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
@@ -137,30 +142,52 @@
     } catch (e) { return false; }
   }
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  // ---- Record Helpers ----
+  // 完了判定（旧形式 true と新形式 {done:true, completedAt:"HH:MM"} の両対応）
+  function isCompleted(val) { return val === true || (val && val.done === true); }
+  function getCompletedAt(val) { return (val && val.completedAt) ? val.completedAt : null; }
 
   // ---- Task Queries ----
   function getTasksForDate(ds) { return state.tasks.filter(t => !t.createdDate || t.createdDate <= ds); }
   function getCompletionForDate(ds) {
     const tasks = getTasksForDate(ds).filter(t => t.category !== 'カレンダー');
     const rec = state.records[ds] || {};
-    const done = tasks.filter(t => rec[t.id] === true).length;
+    const done = tasks.filter(t => isCompleted(rec[t.id])).length;
     return { total: tasks.length, done, pct: tasks.length > 0 ? done / tasks.length : 0 };
   }
   function isAllComplete(ds) { const { total, done } = getCompletionForDate(ds); return total > 0 && done === total; }
-  function hasSomeComplete(ds) { const r = state.records[ds] || {}; return Object.values(r).some(v => v === true); }
+  function hasSomeComplete(ds) { const r = state.records[ds] || {}; return Object.values(r).some(v => isCompleted(v)); }
 
   // ---- Streaks ----
+  // 対象日かどうか判定（平日のみ/週末のみを考慮）
+  function isTaskActiveOnDate(task, dateObj) {
+    const dow = dateObj.getDay();
+    if (task.timing === '平日のみ' && (dow === 0 || dow === 6)) return false;
+    if (task.timing === '週末のみ' && dow !== 0 && dow !== 6) return false;
+    return true;
+  }
+
   function calcGlobalStreak() {
     const dt = state.tasks.filter(t => t.frequency === '毎日');
     if (!dt.length) return 0;
     let s = 0, d = new Date(), tk = formatDate(d);
     const tr = state.records[tk] || {}, ta = dt.filter(t => !t.createdDate || t.createdDate <= tk);
-    if (!(ta.length > 0 && ta.every(t => tr[t.id] === true))) d.setDate(d.getDate() - 1);
+    // 今日対象のタスクが全て完了しているか（対象日のみ）
+    const todayActive = ta.filter(t => isTaskActiveOnDate(t, d));
+    if (!(todayActive.length > 0 && todayActive.every(t => isCompleted(tr[t.id])))) d.setDate(d.getDate() - 1);
     for (let i = 0; i < 730; i++) {
-      const k = formatDate(d), a = dt.filter(t => !t.createdDate || t.createdDate <= k);
+      const k = formatDate(d);
+      const a = dt.filter(t => !t.createdDate || t.createdDate <= k);
       if (!a.length) break;
+      // その日に対象のタスクのみチェック
+      const active = a.filter(t => isTaskActiveOnDate(t, d));
+      if (active.length === 0) {
+        // 全タスクが非対象日（例: 平日タスクのみの土日）→ スキップ
+        d.setDate(d.getDate() - 1);
+        continue;
+      }
       const r = state.records[k] || {};
-      if (a.every(t => r[t.id] === true)) { s++; d.setDate(d.getDate() - 1); } else break;
+      if (active.every(t => isCompleted(r[t.id]))) { s++; d.setDate(d.getDate() - 1); } else break;
     }
     return s;
   }
@@ -169,23 +196,59 @@
     if (!task) return 0;
     let s = 0, d = new Date();
     const created = task.createdDate || '2000-01-01';
-    if (!((state.records[formatDate(d)] || {})[id] === true)) d.setDate(d.getDate() - 1);
-    for (let i = 0; i < 730; i++) {
-      const k = formatDate(d);
-      if (k < created) break;
-      if (task.frequency === '週') {
-        // For weekly tasks, check the whole week
+    const todayKey = formatDate(d);
+
+    if (task.frequency === '週') {
+      // ---- 週Nタスク: 週単位でカウント ----
+      // 今週の達成状況を確認
+      const thisWeek = getWeekDays(todayKey);
+      const thisWeekDone = thisWeek.some(wd => isCompleted((state.records[formatDate(wd)] || {})[id]));
+      if (!thisWeekDone) {
+        // 今週未達成 → 先週から開始
+        d.setDate(d.getDate() - 7);
+      }
+      for (let i = 0; i < 104; i++) { // 最大2年分
+        const k = formatDate(d);
+        if (k < created) break;
         const weekDays = getWeekDays(k);
-        const done = weekDays.some(wd => (state.records[formatDate(wd)] || {})[id] === true);
+        const done = weekDays.some(wd => isCompleted((state.records[formatDate(wd)] || {})[id]));
         if (done) { s++; d.setDate(d.getDate() - 7); } else break;
+      }
+    } else {
+      // ---- 毎日タスク（平日のみ/週末のみ含む） ----
+      // 今日が対象日かチェック
+      const todayActive = isTaskActiveOnDate(task, d);
+      if (todayActive) {
+        // 今日が対象日: 未完了なら昨日から開始
+        if (!(isCompleted((state.records[todayKey] || {})[id]))) {
+          d.setDate(d.getDate() - 1);
+        }
       } else {
-        if ((state.records[k] || {})[id] === true) { s++; d.setDate(d.getDate() - 1); } else break;
+        // 今日が非対象日（平日タスクの土日等）: 直前の対象日から開始
+        d.setDate(d.getDate() - 1);
+      }
+
+      for (let i = 0; i < 730; i++) {
+        const k = formatDate(d);
+        if (k < created) break;
+        // 非対象日はスキップ（ストリーク途切れにしない）
+        if (!isTaskActiveOnDate(task, d)) {
+          d.setDate(d.getDate() - 1);
+          continue;
+        }
+        // 対象日: 達成なら+1、未達成なら途切れ
+        if (isCompleted((state.records[k] || {})[id])) {
+          s++;
+          d.setDate(d.getDate() - 1);
+        } else {
+          break;
+        }
       }
     }
     return s;
   }
   function getWeeklyProgress(id) {
-    return getWeekDays(state.selectedDate).reduce((c, d) => (state.records[formatDate(d)] || {})[id] === true ? c + 1 : c, 0);
+    return getWeekDays(state.selectedDate).reduce((c, d) => isCompleted((state.records[formatDate(d)] || {})[id]) ? c + 1 : c, 0);
   }
 
   // ---- Scheduled Tasks ----
@@ -509,7 +572,7 @@
       // このタスクが今日の対象かチェック
       if (t.createdDate && t.createdDate > today) return;
       // 既に完了済みなら通知しない
-      if (rec[t.id] === true) return;
+      if (isCompleted(rec[t.id])) return;
       // 今日既に通知済みなら通知しない（lastNotifiedDate で判定）
       if (t.lastNotifiedDate === today) return;
 
@@ -555,8 +618,7 @@
         tag: 'habit-' + taskId,
         taskId: taskId
       });
-      // アプリ内バナーも同時表示
-      showNotifyBanner(msg);
+      // SW経由の場合、OS通知のみ（バナー二重表示を防止）
       return;
     }
     // SW未対応: ブラウザ Notification API
@@ -830,7 +892,14 @@
   function renderTaskList() {
     const c = $('#task-list');
     let tasks = state.tasks;
-    if (state.activeFilter !== 'all') tasks = tasks.filter(t => t.category === state.activeFilter);
+    if (state.activeFilter !== 'all') {
+      if (state.activeFilter.startsWith('tag:')) {
+        const tag = state.activeFilter.replace('tag:', '');
+        tasks = tasks.filter(t => t.name.includes(tag));
+      } else {
+        tasks = tasks.filter(t => t.category === state.activeFilter);
+      }
+    }
     if (!tasks.length) { c.innerHTML = '<div class="empty-state" style="display:flex;"><div class="empty-icon">📋</div><p>タスクがありません</p><p class="empty-sub">右下の＋ボタンから追加しましょう</p></div>'; return; }
     const dr = state.records[state.selectedDate] || {};
     // Group by category
@@ -841,24 +910,43 @@
     cats.forEach(cat => groups.push({ name: cat, tasks: tasks.filter(t => t.category === cat) }));
 
     function taskHtml(task) {
-      const chk = dr[task.id] === true, ts = calcTaskStreak(task.id), hl = task.url && task.url.trim().length > 0;
+      const chk = isCompleted(dr[task.id]), ts = calcTaskStreak(task.id), hl = task.url && task.url.trim().length > 0;
       let wh = '';
+      // Repeat type badge
+      let repeatBadge = '';
       if (task.frequency === '週' && task.freqCount) {
         const wp = getWeeklyProgress(task.id), tg = task.freqCount;
         const dots = Array.from({ length: tg }, (_, i) => `<span class="weekly-dot ${i < wp ? 'done' : ''}">●</span>`).join('');
         wh = `<div class="weekly-progress ${wp >= tg ? 'complete' : ''}"><span class="weekly-dots">${dots}</span><span class="weekly-label">${wp}/${tg}</span></div>`;
+        repeatBadge = `<span class="repeat-badge repeat-weekly">📅 週${tg}回</span>`;
+      } else if (task.frequency === '毎日') {
+        // Check timing for weekday/weekend
+        if (task.timing === '平日のみ') {
+          repeatBadge = '<span class="repeat-badge repeat-weekday">🏢 平日</span>';
+        } else if (task.timing === '週末のみ') {
+          repeatBadge = '<span class="repeat-badge repeat-weekend">🌴 週末</span>';
+        } else {
+          repeatBadge = '<span class="repeat-badge repeat-daily">🗓️ 毎日</span>';
+        }
       }
       const icon = taskIconHtml(task);
-      const iconIsImg = task.customIcon ? true : false;
       const memo = getTaskMemo(task.id, state.selectedDate);
       const hasMemo = memo ? 'memo-has' : 'memo-empty';
+      const pri = task.priority || '';
+      const priAttr = pri ? ` data-priority="${pri}"` : '';
+      // Extract tags from task name
+      const tags = (task.name.match(/#[^\s#]+/g) || []);
+      const tagHtml = tags.map(t => `<span class="task-tag-badge">${escapeHtml(t)}</span>`).join('');
+      const displayName = task.name.replace(/#[^\s#]+/g, '').trim();
       return `<div class="task-item" data-id="${task.id}" draggable="true">
         <div class="drag-handle" title="ドラッグで並び替え">≡</div>
         <div class="task-timing">${escapeHtml(task.timing || 'いつでも')}</div>
         <div class="task-center" data-task-id="${task.id}">
-          <div class="task-name"><span class="task-label">${icon}${escapeHtml(task.name)}</span></div>
+          <div class="task-name"><span class="task-label">${icon}${escapeHtml(displayName)}</span></div>
           <div class="task-meta">
             ${task.category ? `<span class="task-category-tag">${escapeHtml(task.category)}</span>` : ''}
+            ${tagHtml}
+            ${repeatBadge}
             ${hl ? '<span class="task-link-icon">🔗</span>' : ''}
             ${task.notifyTime ? `<span class="task-notify-badge">🔔${task.notifyTime}</span>` : ''}
           </div>${wh}
@@ -867,7 +955,7 @@
         <div class="task-right">
           ${ts > 0 ? `<div class="task-action-cell task-streak-mini"><span class="mini-fire">🔥</span>${ts}</div>` : ''}
           <button class="task-action-cell memo-btn ${hasMemo}" data-memo-id="${task.id}" type="button" title="メモ">📝</button>
-          <button class="task-action-cell check-btn ${chk ? 'checked' : ''}" data-check-id="${task.id}" type="button"></button>
+          <button class="task-action-cell check-btn ${chk ? 'checked' : ''}" data-check-id="${task.id}"${priAttr} type="button"></button>
         </div>
         <span class="task-edit-hint">長押しで編集</span>
       </div>`;
@@ -877,7 +965,7 @@
     groups.forEach(g => {
       if (g.name) {
         const gTasks = g.tasks;
-        const gDone = gTasks.filter(t => dr[t.id] === true).length;
+        const gDone = gTasks.filter(t => isCompleted(dr[t.id])).length;
         html += `<div class="category-group">
           <div class="category-group-header" data-cat="${escapeHtml(g.name)}">
             <span class="category-group-name">${escapeHtml(g.name)}</span>
@@ -996,35 +1084,189 @@
     showToast('🔄 並び替えました');
   }
 
-  // ---- Render: Year Calendar ----
+  // ---- Render: Calendar (Month + Year + List) ----
   function renderCalendar() {
     const y = state.calYear, m = state.calMonth;
-    $('#cal-year').textContent = y + '年';
-    $('#cal-month').textContent = (m + 1) + '月';
-    const c = $('#cal-content'), days = daysInMonth(y, m), tk = todayStr();
-    const firstDay = new Date(y, m, 1).getDay();
-    let html = '<div class="cal-weekday-row">' + WEEKDAYS.map(w => `<span>${w}</span>`).join('') + '</div>';
-    html += '<div class="cal-grid">';
-    for (let i = 0; i < firstDay; i++) html += '<div class="cal-cell empty"></div>';
-    for (let d = 1; d <= days; d++) {
+    const mNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+    const calTitle = $('#cal-title');
+    const monthView = $('#cal-month-view');
+    const yearView = $('#cal-year-view');
+    const listView = $('#cal-list-view');
+    const modeBtn = $('#cal-mode-toggle');
+
+    monthView.style.display = 'none';
+    yearView.style.display = 'none';
+    listView.style.display = 'none';
+
+    if (state.calMode === 'month') {
+      calTitle.textContent = y + '年 ' + mNames[m];
+      monthView.style.display = '';
+      modeBtn.textContent = '📅';
+      renderMonthCalendar(y, m);
+    } else if (state.calMode === 'list') {
+      calTitle.textContent = y + '年 ' + mNames[m];
+      listView.style.display = '';
+      modeBtn.textContent = '📝';
+      renderListCalendar(y, m);
+    } else {
+      calTitle.textContent = y + '年';
+      yearView.style.display = '';
+      modeBtn.textContent = '📆';
+      renderYearCalendar(y);
+    }
+  }
+
+  // Task color mapping
+  const CAT_COLORS = ['green', 'blue', 'orange', 'pink', 'red', 'purple'];
+  function getTaskColor(task, idx) {
+    if (task.category) {
+      // ユーザー定義色があればそれを使用
+      const userColor = getCategoryColor(task.category);
+      if (userColor) return userColor;
+      // なければカテゴリ名のハッシュで安定した色を割り当て
+      let hash = 0;
+      for (let i = 0; i < task.category.length; i++) {
+        hash = ((hash << 5) - hash) + task.category.charCodeAt(i);
+        hash |= 0;
+      }
+      return CAT_COLORS[Math.abs(hash) % CAT_COLORS.length];
+    }
+    return CAT_COLORS[idx % CAT_COLORS.length];
+  }
+
+  function renderMonthCalendar(y, m) {
+    const grid = $('#cal-month-grid');
+    const fd = new Date(y, m, 1).getDay();
+    const dim = daysInMonth(y, m);
+    const tk = todayStr();
+    let h = '';
+    for (let i = 0; i < fd; i++) h += '<div class="new-month-cell empty"></div>';
+    for (let d = 1; d <= dim; d++) {
       const k = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const isT = k === tk;
-      const { pct } = getCompletionForDate(k);
-      const all = isAllComplete(k), some = hasSomeComplete(k);
+      const tasks = getTasksForDate(k).filter(t => t.category !== 'カレンダー');
+      const rec = state.records[k] || {};
       const scheduled = state.scheduledTasks.filter(st => st.date === k);
-      const hasSch = scheduled.length > 0;
-      html += `<div class="cal-cell${isT ? ' today' : ''}${all ? ' all-complete' : some ? ' has-complete' : ''}" data-date="${k}">
-        <span class="cal-day-num">${d}</span>
-        ${hasSch ? '<span class="cal-dot scheduled">•</span>' : ''}
-        ${some && !all ? '<span class="cal-dot done">•</span>' : ''}
-        ${all ? '<span class="cal-dot all-done">✓</span>' : ''}
+      const doneTasks = tasks.filter(t => isCompleted(rec[t.id]));
+      // Show up to 3 tasks
+      let taskBars = '';
+      const showTasks = [...doneTasks.slice(0, 2), ...scheduled.slice(0, 1)];
+      if (tasks.length > 0 || scheduled.length > 0) {
+        const items = [...tasks.slice(0, 2), ...scheduled.map(st => ({ name: st.name, _sch: true })).slice(0, 1)];
+        taskBars = items.map((t, i) => {
+          const color = t._sch ? 'orange' : getTaskColor(t, i);
+          const name = t.name.length > 5 ? t.name.slice(0, 5) : t.name;
+          return `<div class="new-cal-task-bar ${color}">${name}</div>`;
+        }).join('');
+      }
+      h += `<div class="new-month-cell${isT ? ' today' : ''}" data-date="${k}">
+        <div class="new-month-cell-day">${d}</div>
+        <div class="new-month-cell-tasks">${taskBars}</div>
       </div>`;
     }
-    html += '</div>';
-    c.innerHTML = html;
-    // Click handlers
-    c.querySelectorAll('.cal-cell:not(.empty)').forEach(cell => {
+    grid.innerHTML = h;
+    grid.querySelectorAll('.new-month-cell:not(.empty)').forEach(cell => {
       cell.addEventListener('click', () => openDayDetail(cell.dataset.date));
+    });
+  }
+
+  function renderYearCalendar(y) {
+    const grid = $('#cal-year-grid');
+    const mNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+    const tk = todayStr();
+    let h = '';
+    for (let m = 0; m < 12; m++) {
+      const fd = new Date(y, m, 1).getDay();
+      const dim = daysInMonth(y, m);
+      h += `<div class="new-mini-month"><div class="new-mini-month-title">${mNames[m]}</div><div class="new-mini-month-grid">`;
+      for (let i = 0; i < fd; i++) h += '<span></span>';
+      for (let d = 1; d <= dim; d++) {
+        const k = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const isT = k === tk;
+        const hasTask = hasSomeComplete(k) || state.scheduledTasks.some(st => st.date === k);
+        h += `<span class="${isT ? 'today' : ''}${hasTask ? ' has-task' : ''}" data-date="${k}">${d}</span>`;
+      }
+      h += '</div></div>';
+    }
+    grid.innerHTML = h;
+    grid.querySelectorAll('.new-mini-month-grid span[data-date]').forEach(sp => {
+      sp.addEventListener('click', () => openDayDetail(sp.dataset.date));
+    });
+    // Month title tap -> list view for that month
+    grid.querySelectorAll('.new-mini-month-title').forEach((title, idx) => {
+      title.style.cursor = 'pointer';
+      title.addEventListener('click', () => {
+        state.calMonth = idx;
+        state.calMode = 'list';
+        renderCalendar();
+      });
+    });
+  }
+
+  // ---- Render: Calendar List View ----
+  function renderListCalendar(y, m) {
+    const content = $('#cal-list-content');
+    if (!content) return;
+    const dim = daysInMonth(y, m);
+    const tk = todayStr();
+    let html = '';
+    for (let d = 1; d <= dim; d++) {
+      const k = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const date = new Date(y, m, d);
+      const dayLabel = WEEKDAYS[date.getDay()];
+      const isToday = k === tk;
+      const tasks = getTasksForDate(k).filter(t => t.category !== 'カレンダー');
+      const scheduled = state.scheduledTasks.filter(st => st.date === k);
+      const rec = state.records[k] || {};
+
+      if (tasks.length === 0 && scheduled.length === 0) continue; // Skip empty days
+
+      html += `<div class="cal-list-day${isToday ? ' today' : ''}">`;
+      html += `<div class="cal-list-day-header">`;
+      html += `<span class="cal-list-day-num">${d}</span>`;
+      html += `<span class="cal-list-day-name">${dayLabel}</span>`;
+      if (isToday) html += `<span class="cal-list-today-badge">今日</span>`;
+      html += `</div>`;
+      html += `<div class="cal-list-day-items">`;
+
+      // Scheduled events
+      scheduled.forEach(st => {
+        html += `<div class="cal-list-item cal-list-scheduled" data-date="${k}">`;
+        html += `<span class="cal-list-item-icon">${st.emoji || '📅'}</span>`;
+        html += `<span class="cal-list-item-name">${escapeHtml(st.name)}</span>`;
+        if (st.timing && st.timing !== 'いつでも') html += `<span class="cal-list-item-time">${escapeHtml(st.timing)}</span>`;
+        html += `</div>`;
+      });
+
+      // Tasks
+      tasks.forEach(t => {
+        const done = isCompleted(rec[t.id]);
+        const pri = t.priority || '';
+        html += `<div class="cal-list-item${done ? ' done' : ''}">`;
+        html += `<span class="cal-list-item-check${done ? ' checked' : ''}" ${pri ? `data-priority="${pri}"` : ''}>${done ? '✓' : '○'}</span>`;
+        html += `<span class="cal-list-item-name">${t.emoji || ''} ${escapeHtml(t.name.replace(/#[^\s#]+/g, '').trim())}</span>`;
+        html += `</div>`;
+      });
+
+      html += `</div></div>`;
+    }
+    if (!html) html = '<p class="empty-sub" style="padding:20px;text-align:center;">この月のデータはありません</p>';
+    content.innerHTML = html;
+
+    // Click day headers to open detail
+    content.querySelectorAll('.cal-list-day-header').forEach(hdr => {
+      hdr.style.cursor = 'pointer';
+      const dayEl = hdr.closest('.cal-list-day');
+      if (!dayEl) return;
+      hdr.addEventListener('click', () => {
+        const dateStr = dayEl.querySelector('.cal-list-item')?.dataset?.date;
+        // Get date from day number
+        const dayNum = hdr.querySelector('.cal-list-day-num')?.textContent;
+        if (dayNum) {
+          const dk = `${y}-${String(m + 1).padStart(2, '0')}-${String(parseInt(dayNum)).padStart(2, '0')}`;
+          openDayDetail(dk);
+        }
+      });
     });
   }
 
@@ -1053,7 +1295,7 @@
     if (tasks.length) {
       html += '<h3 class="detail-section-title">✅ タスク</h3>';
       tasks.forEach(t => {
-        const done = rec[t.id] === true;
+        const done = isCompleted(rec[t.id]);
         const memo = getTaskMemo(t.id, dateStr);
         html += `<div class="detail-item ${done ? 'done' : ''}">${t.emoji || ''} ${escapeHtml(t.name)} ${done ? '<span class="detail-check">✅</span>' : '<span class="detail-check dim">○</span>'}${memo ? `<div class="task-memo-line">📝 ${escapeHtml(memo)}</div>` : ''}</div>`;
       });
@@ -1142,14 +1384,27 @@
     const days = daysInMonth(y, m), now = new Date();
     const maxDay = (now.getFullYear() === y && now.getMonth() === m) ? Math.min(now.getDate(), days) : days;
     let tc = 0, tp = 0, ms = 0, cs = 0;
-    const tcc = {};
-    state.tasks.forEach(t => { tcc[t.id] = 0; });
+    const tcc = {};  // タスクごとの達成日数
+    const tad = {};  // タスクごとの対象日数
+    state.tasks.forEach(t => { tcc[t.id] = 0; tad[t.id] = 0; });
     for (let d = 1; d <= days; d++) {
       const k = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const r = state.records[k] || {}, tf = getTasksForDate(k);
+      const dateObj = new Date(y, m, d);
+      const r = state.records[k] || {}, tf = getTasksForDate(k).filter(t => t.category !== 'カレンダー');
+      // その日に対象のタスクのみフィルタ
+      const activeTasks = tf.filter(t => isTaskActiveOnDate(t, dateObj));
       let dc = true;
-      tf.forEach(t => { if (d <= maxDay) tp++; if (r[t.id] === true) { if (d <= maxDay) tc++; if (tcc[t.id] !== undefined) tcc[t.id]++; } else dc = false; });
-      if (tf.length > 0 && dc) { cs++; ms = Math.max(ms, cs); } else if (tf.length > 0) cs = 0;
+      activeTasks.forEach(t => {
+        if (d <= maxDay) { tp++; if (tad[t.id] !== undefined) tad[t.id]++; }
+        if (isCompleted(r[t.id])) {
+          if (d <= maxDay) tc++;
+          if (tcc[t.id] !== undefined) tcc[t.id]++;
+        } else { dc = false; }
+      });
+      // ストリーク: 対象タスクが0ならスキップ
+      if (activeTasks.length > 0) {
+        if (dc) { cs++; ms = Math.max(ms, cs); } else cs = 0;
+      }
     }
     const rate = tp > 0 ? Math.round(tc / tp * 100) : 0;
     $('#stat-total').textContent = tc;
@@ -1157,17 +1412,27 @@
     $('#stat-max-streak').textContent = ms;
     const tsl = $('#task-stats-list');
     if (!state.tasks.length) { tsl.innerHTML = '<div class="stats-empty">タスクがまだありません</div>'; return; }
-    tsl.innerHTML = state.tasks.map(t => {
-      const cnt = tcc[t.id] || 0, pct = maxDay > 0 ? Math.round(cnt / maxDay * 100) : 0;
+    tsl.innerHTML = state.tasks.filter(t => t.category !== 'カレンダー').map(t => {
+      const cnt = tcc[t.id] || 0;
+      const activeDays = tad[t.id] || 0;
+      const pct = activeDays > 0 ? Math.round(cnt / activeDays * 100) : 0;
       return `<div class="task-stat-row"><div class="task-stat-name">${t.emoji || ''} ${escapeHtml(t.name)}</div><div class="task-stat-bar-bg"><div class="task-stat-bar" style="width:0%"></div></div><div class="task-stat-pct">${pct}%</div></div>`;
     }).join('');
+    const filteredTasks = state.tasks.filter(t => t.category !== 'カレンダー');
     requestAnimationFrame(() => {
       tsl.querySelectorAll('.task-stat-bar').forEach((bar, i) => {
-        const cnt = tcc[state.tasks[i]?.id] || 0, pct = maxDay > 0 ? Math.round(cnt / maxDay * 100) : 0;
+        const t = filteredTasks[i];
+        if (!t) return;
+        const cnt = tcc[t.id] || 0;
+        const activeDays = tad[t.id] || 0;
+        const pct = activeDays > 0 ? Math.round(cnt / activeDays * 100) : 0;
         bar.style.width = pct + '%';
       });
     });
     renderDailyChart(y, m);
+    renderTaskStreakList();
+    renderDayOfWeekStats(y, m);
+    renderTimeOfDayStats(y, m);
   }
   function renderDailyChart(year, month) {
     const canvas = $('#daily-chart'); if (!canvas) return;
@@ -1182,8 +1447,12 @@
     for (let i = 0; i <= 4; i++)ctx.fillText((100 - i * 25) + '%', 25, 14 + (mH / 4) * i);
     for (let d = 1; d <= days; d++) {
       const k = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const r = state.records[k] || {}, tf = getTasksForDate(k), done = tf.filter(t => r[t.id] === true).length;
-      const pct = tf.length > 0 ? done / tf.length : 0, x = 32 + (d - 1) * (bw + gap), barH = pct * mH;
+      const dateObj = new Date(year, month, d);
+      const r = state.records[k] || {}, tf = getTasksForDate(k).filter(t => t.category !== 'カレンダー');
+      // 対象タスクのみで達成率を計算
+      const activeTasks = tf.filter(t => isTaskActiveOnDate(t, dateObj));
+      const done = activeTasks.filter(t => isCompleted(r[t.id])).length;
+      const pct = activeTasks.length > 0 ? done / activeTasks.length : 0, x = 32 + (d - 1) * (bw + gap), barH = pct * mH;
       const grad = ctx.createLinearGradient(x, 10 + mH - barH, x, 10 + mH);
       grad.addColorStop(0, 'rgba(74,222,128,0.85)'); grad.addColorStop(1, 'rgba(34,197,94,0.4)');
       ctx.fillStyle = pct > 0 ? grad : 'rgba(74,222,128,0.05)';
@@ -1191,6 +1460,186 @@
       ctx.beginPath(); ctx.moveTo(bx + R, by); ctx.lineTo(bx + BW - R, by); ctx.quadraticCurveTo(bx + BW, by, bx + BW, by + R);
       ctx.lineTo(bx + BW, by + bh); ctx.lineTo(bx, by + bh); ctx.lineTo(bx, by + R); ctx.quadraticCurveTo(bx, by, bx + R, by); ctx.fill();
       if (d % 5 === 1 || d === days) { ctx.fillStyle = '#5a8a6a'; ctx.font = '8px Inter'; ctx.textAlign = 'center'; ctx.fillText(d, x + bw / 2, h - 2); }
+    }
+  }
+
+  // ---- タスク別最大ストリーク計算（全期間） ----
+  function calcTaskMaxStreak(id) {
+    const task = state.tasks.find(t => t.id === id);
+    if (!task) return 0;
+    const created = task.createdDate || '2000-01-01';
+    const today = new Date();
+    let maxS = 0, curS = 0;
+
+    if (task.frequency === '週') {
+      // 週Nタスク: 作成週から今週まで走査
+      let d = new Date(parseDate(created));
+      for (let i = 0; i < 104; i++) {
+        const k = formatDate(d);
+        if (k > formatDate(today)) break;
+        const weekDays = getWeekDays(k);
+        const done = weekDays.some(wd => isCompleted((state.records[formatDate(wd)] || {})[id]));
+        if (done) { curS++; maxS = Math.max(maxS, curS); } else { curS = 0; }
+        d.setDate(d.getDate() + 7);
+      }
+    } else {
+      // 毎日タスク: 作成日から今日まで走査
+      let d = new Date(parseDate(created));
+      while (formatDate(d) <= formatDate(today)) {
+        if (!isTaskActiveOnDate(task, d)) { d.setDate(d.getDate() + 1); continue; }
+        const k = formatDate(d);
+        if (isCompleted((state.records[k] || {})[id])) {
+          curS++; maxS = Math.max(maxS, curS);
+        } else { curS = 0; }
+        d.setDate(d.getDate() + 1);
+      }
+    }
+    return maxS;
+  }
+
+  // ---- タスク別最大ストリークリスト描画 ----
+  function renderTaskStreakList() {
+    const el = $('#task-streak-list'); if (!el) return;
+    const tasks = state.tasks.filter(t => t.category !== 'カレンダー');
+    if (!tasks.length) { el.innerHTML = '<div class="stats-empty">タスクがまだありません</div>'; return; }
+    const data = tasks.map(t => ({ task: t, maxStreak: calcTaskMaxStreak(t.id), curStreak: calcTaskStreak(t.id) }))
+      .sort((a, b) => b.maxStreak - a.maxStreak);
+    const topStreak = data[0]?.maxStreak || 1;
+    el.innerHTML = data.map(d => {
+      const pct = topStreak > 0 ? Math.round(d.maxStreak / topStreak * 100) : 0;
+      return `<div class="streak-row">
+        <div class="streak-row-name">${d.task.emoji || ''} ${escapeHtml(d.task.name)}</div>
+        <div class="streak-row-bar-bg"><div class="streak-row-bar" style="width:0%"></div></div>
+        <div class="streak-row-val"><span class="streak-max-val">🔥${d.maxStreak}日</span><span class="streak-cur-val">(現在 ${d.curStreak}日)</span></div>
+      </div>`;
+    }).join('');
+    // 分析テキスト
+    const best = data[0];
+    const worst = data.filter(d => d.maxStreak > 0).slice(-1)[0];
+    let insightHtml = '';
+    if (best && best.maxStreak > 0) {
+      insightHtml += `<div class="insight-item insight-good">💪 <strong>${escapeHtml(best.task.name)}</strong> が最も継続力が高い（最大${best.maxStreak}日連続）</div>`;
+    }
+    if (worst && worst !== best && worst.maxStreak > 0) {
+      insightHtml += `<div class="insight-item insight-warn">⚡ <strong>${escapeHtml(worst.task.name)}</strong> は継続が途切れやすい傾向（最大${worst.maxStreak}日）</div>`;
+    }
+    if (insightHtml) el.innerHTML += `<div class="insight-box">${insightHtml}</div>`;
+    requestAnimationFrame(() => {
+      el.querySelectorAll('.streak-row-bar').forEach((bar, i) => {
+        const d = data[i]; if (!d) return;
+        bar.style.width = (topStreak > 0 ? Math.round(d.maxStreak / topStreak * 100) : 0) + '%';
+      });
+    });
+  }
+
+  // ---- 曜日別達成傾向描画 ----
+  function renderDayOfWeekStats(year, month) {
+    const el = $('#day-of-week-stats'); if (!el) return;
+    const days = daysInMonth(year, month);
+    const now = new Date();
+    const maxDay = (now.getFullYear() === year && now.getMonth() === month) ? Math.min(now.getDate(), days) : days;
+    const dowData = Array.from({ length: 7 }, () => ({ total: 0, done: 0 }));
+    const dowNames = ['日', '月', '火', '水', '木', '金', '土'];
+
+    for (let d = 1; d <= maxDay; d++) {
+      const k = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dateObj = new Date(year, month, d);
+      const dow = dateObj.getDay();
+      const r = state.records[k] || {};
+      const tf = getTasksForDate(k).filter(t => t.category !== 'カレンダー');
+      const active = tf.filter(t => isTaskActiveOnDate(t, dateObj));
+      active.forEach(t => {
+        dowData[dow].total++;
+        if (isCompleted(r[t.id])) dowData[dow].done++;
+      });
+    }
+
+    const rates = dowData.map((d, i) => ({
+      name: dowNames[i], rate: d.total > 0 ? Math.round(d.done / d.total * 100) : 0, total: d.total, done: d.done
+    }));
+    const maxRate = Math.max(...rates.map(r => r.rate), 1);
+
+    // 月曜始まりに並び替え
+    const orderedRates = [...rates.slice(1), rates[0]];
+
+    el.innerHTML = orderedRates.map(r => {
+      const barPct = maxRate > 0 ? Math.round(r.rate / maxRate * 100) : 0;
+      const isLow = r.rate > 0 && r.rate <= Math.min(...orderedRates.filter(x => x.total > 0).map(x => x.rate));
+      const isHigh = r.rate > 0 && r.rate >= Math.max(...orderedRates.filter(x => x.total > 0).map(x => x.rate));
+      return `<div class="dow-row ${isLow ? 'dow-low' : ''} ${isHigh ? 'dow-high' : ''}">
+        <span class="dow-name">${r.name}</span>
+        <div class="dow-bar-bg"><div class="dow-bar" style="width:${barPct}%"></div></div>
+        <span class="dow-rate">${r.rate}%</span>
+      </div>`;
+    }).join('');
+
+    // 分析テキスト
+    const activeRates = orderedRates.filter(r => r.total > 0);
+    if (activeRates.length > 0) {
+      const best = activeRates.reduce((a, b) => a.rate >= b.rate ? a : b);
+      const worst = activeRates.reduce((a, b) => a.rate <= b.rate ? a : b);
+      let insightHtml = '';
+      if (best.rate > 0) insightHtml += `<div class="insight-item insight-good">📈 <strong>${best.name}曜日</strong>の達成率が最も高い（${best.rate}%）</div>`;
+      if (worst !== best && worst.rate < best.rate) insightHtml += `<div class="insight-item insight-warn">📉 <strong>${worst.name}曜日</strong>の達成率が比較的低い（${worst.rate}%）</div>`;
+      if (insightHtml) el.innerHTML += `<div class="insight-box">${insightHtml}</div>`;
+    }
+  }
+
+  // ---- 時間帯別達成傾向描画 ----
+  function renderTimeOfDayStats(year, month) {
+    const el = $('#time-of-day-stats'); if (!el) return;
+    const days = daysInMonth(year, month);
+    const now = new Date();
+    const maxDay = (now.getFullYear() === year && now.getMonth() === month) ? Math.min(now.getDate(), days) : days;
+    // 時間帯バケット: 0-5, 6-8, 9-11, 12-14, 15-17, 18-20, 21-23
+    const buckets = [
+      { label: '深夜', range: '0-5時', from: 0, to: 5, count: 0, icon: '🌙' },
+      { label: '早朝', range: '6-8時', from: 6, to: 8, count: 0, icon: '🌅' },
+      { label: '午前', range: '9-11時', from: 9, to: 11, count: 0, icon: '☀️' },
+      { label: '昼', range: '12-14時', from: 12, to: 14, count: 0, icon: '🌤️' },
+      { label: '午後', range: '15-17時', from: 15, to: 17, count: 0, icon: '🌇' },
+      { label: '夕方', range: '18-20時', from: 18, to: 20, count: 0, icon: '🌆' },
+      { label: '夜', range: '21-23時', from: 21, to: 23, count: 0, icon: '🌃' },
+    ];
+    let totalWithTime = 0;
+
+    for (let d = 1; d <= maxDay; d++) {
+      const k = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const r = state.records[k];
+      if (!r) continue;
+      Object.values(r).forEach(val => {
+        if (!val || val === 'memos') return;
+        const at = getCompletedAt(val);
+        if (!at) return;
+        const hour = parseInt(at.split(':')[0], 10);
+        if (isNaN(hour)) return;
+        totalWithTime++;
+        const bucket = buckets.find(b => hour >= b.from && hour <= b.to);
+        if (bucket) bucket.count++;
+      });
+    }
+
+    if (totalWithTime === 0) {
+      el.innerHTML = '<div class="stats-empty">時刻データはまだありません<br><span class="stats-empty-sub">タスクを完了すると時間帯が記録されます</span></div>';
+      return;
+    }
+
+    const maxCount = Math.max(...buckets.map(b => b.count), 1);
+    el.innerHTML = `<div class="time-slots">` + buckets.map(b => {
+      const pct = maxCount > 0 ? Math.round(b.count / maxCount * 100) : 0;
+      const isTop = b.count === maxCount && b.count > 0;
+      return `<div class="time-slot ${isTop ? 'time-slot-top' : ''}" title="${b.range}: ${b.count}回">
+        <div class="time-slot-bar-wrap"><div class="time-slot-bar" style="height:${pct}%"></div></div>
+        <div class="time-slot-icon">${b.icon}</div>
+        <div class="time-slot-label">${b.label}</div>
+        <div class="time-slot-count">${b.count}</div>
+      </div>`;
+    }).join('') + `</div>`;
+
+    // 分析テキスト
+    const topBucket = buckets.reduce((a, b) => a.count >= b.count ? a : b);
+    if (topBucket.count > 0) {
+      el.innerHTML += `<div class="insight-box"><div class="insight-item insight-good">⏰ <strong>${topBucket.range}</strong>に達成されることが多い（${topBucket.count}回）</div></div>`;
     }
   }
 
@@ -1276,8 +1725,14 @@
   function handleCheck(id) {
     const k = state.selectedDate;
     if (!state.records[k]) state.records[k] = {};
-    const was = state.records[k][id] === true;
-    state.records[k][id] = !was; save();
+    const was = isCompleted(state.records[k][id]);
+    if (was) {
+      state.records[k][id] = false;
+    } else {
+      const now = new Date();
+      state.records[k][id] = { done: true, completedAt: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` };
+    }
+    save();
     if (!was) {
       const btn = document.querySelector(`.check-btn[data-check-id="${id}"]`);
       if (btn) { btn.classList.add('checked'); createParticles(btn); }
@@ -1388,6 +1843,7 @@
       customIcon: currentAddIcon,
       notifyTime: $('#task-notify-time').value || '',
       lastNotifiedDate: null,
+      priority: '',
     });
     resetCelebration(); save(); syncNotifySchedules(); closeModal('modal-overlay'); renderAll(); showToast('✨ タスクを追加しました');
   }
@@ -1841,11 +2297,13 @@
 
     // FAB
     const fab = $('#fab-add');
-    fab.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openAddModal(); });
-    fab.addEventListener('touchend', e => { e.preventDefault(); openAddModal(); });
+    fab.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openAddSheet(); });
+    fab.addEventListener('touchend', e => { e.preventDefault(); openAddSheet(); });
     const calFab = $('#cal-fab-add');
-    calFab.addEventListener('click', e => { e.preventDefault(); openCalTaskModal(''); });
-    calFab.addEventListener('touchend', e => { e.preventDefault(); openCalTaskModal(''); });
+    if (calFab) {
+      calFab.addEventListener('click', e => { e.preventDefault(); openCalTaskModal(''); });
+      calFab.addEventListener('touchend', e => { e.preventDefault(); openCalTaskModal(''); });
+    }
 
     // Modal closes
     $('#modal-close').addEventListener('click', () => closeModal('modal-overlay'));
@@ -2051,8 +2509,11 @@
     $('#edit-delete-btn').addEventListener('click', deleteTask);
     $('#cal-task-form').addEventListener('submit', addScheduledTask);
 
-    // Settings btn
-    $('#settings-btn').addEventListener('click', openSettings);
+    // Drawer (replaces settings btn)
+    $('#drawer-btn').addEventListener('click', openDrawer);
+    $('#drawer-close').addEventListener('click', closeDrawer);
+    $('#drawer-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeDrawer(); });
+    $('#drawer-settings-btn').addEventListener('click', () => { closeDrawer(); openSettings(); });
 
     // Emoji pickers
     setupEmojiPanel('emoji-picker-btn', 'emoji-panel', 'emoji-cats', 'emoji-grid');
@@ -2103,9 +2564,29 @@
     $('#stats-prev').addEventListener('click', () => { state.statsMonth--; if (state.statsMonth < 0) { state.statsMonth = 11; state.statsYear--; } renderStats(); });
     $('#stats-next').addEventListener('click', () => { state.statsMonth++; if (state.statsMonth > 11) { state.statsMonth = 0; state.statsYear++; } renderStats(); });
 
-    // Calendar nav
-    $('#cal-prev').addEventListener('click', () => { state.calMonth--; if (state.calMonth < 0) { state.calMonth = 11; state.calYear--; } renderCalendar(); });
-    $('#cal-next').addEventListener('click', () => { state.calMonth++; if (state.calMonth > 11) { state.calMonth = 0; state.calYear++; } renderCalendar(); });
+    // Calendar nav + mode toggle
+    $('#cal-prev').addEventListener('click', () => {
+      if (state.calMode === 'month' || state.calMode === 'list') {
+        state.calMonth--; if (state.calMonth < 0) { state.calMonth = 11; state.calYear--; }
+      } else {
+        state.calYear--;
+      }
+      renderCalendar();
+    });
+    $('#cal-next').addEventListener('click', () => {
+      if (state.calMode === 'month' || state.calMode === 'list') {
+        state.calMonth++; if (state.calMonth > 11) { state.calMonth = 0; state.calYear++; }
+      } else {
+        state.calYear++;
+      }
+      renderCalendar();
+    });
+    $('#cal-mode-toggle').addEventListener('click', () => {
+      if (state.calMode === 'month') state.calMode = 'list';
+      else if (state.calMode === 'list') state.calMode = 'year';
+      else state.calMode = 'month';
+      renderCalendar();
+    });
 
     // Settings - Background
     $('#bg-upload-btn').addEventListener('click', () => $('#bg-upload').click());
@@ -2320,4 +2801,365 @@
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+
+  // ===== Quick-Add Bottom Sheet Logic =====
+  let qsState = { date: '', dateStr: '', priority: '', priorityColor: '', repeat: '', emoji: '', category: '', tags: [] };
+  let qsDpYear = new Date().getFullYear(), qsDpMonth = new Date().getMonth();
+  let qsEmojiCat = Object.keys(EMOJI_CATS)[0]; // default first category
+
+  function openAddSheet() {
+    qsState = { date: '', dateStr: '', priority: '', priorityColor: '', repeat: '', emoji: '', category: '', tags: [] };
+    qsDpYear = new Date().getFullYear(); qsDpMonth = new Date().getMonth();
+    const overlay = document.getElementById('add-overlay');
+    overlay.classList.add('open');
+    qsUpdateInfo();
+    qsRenderDatePicker();
+    qsRenderEmojiTabs();
+    qsRenderEmojiGrid();
+    qsRenderCatPopup();
+    setTimeout(() => document.getElementById('add-title').focus(), 300);
+  }
+  function closeAddSheet() {
+    document.getElementById('add-overlay').classList.remove('open');
+    qsCloseAllPanels();
+    qsCloseCat();
+  }
+  function qsCloseAllPanels() {
+    document.querySelectorAll('.add-panel').forEach(p => p.classList.remove('open'));
+    document.querySelectorAll('.add-tool-btn').forEach(b => b.classList.remove('active'));
+  }
+  function qsTogglePanel(name) {
+    const panel = document.getElementById('panel-' + name);
+    const btn = document.getElementById('tool-' + name);
+    const isOpen = panel.classList.contains('open');
+    qsCloseAllPanels();
+    qsCloseCat();
+    if (!isOpen) {
+      panel.classList.add('open');
+      if (btn) btn.classList.add('active');
+      if (name === 'date') qsRenderDatePicker();
+      if (name === 'emoji') { qsRenderEmojiTabs(); qsRenderEmojiGrid(); }
+    }
+  }
+
+  // Date Picker
+  function qsRenderDatePicker() {
+    const el = document.getElementById('dp-days');
+    if (!el) return;
+    const fd = new Date(qsDpYear, qsDpMonth, 1).getDay();
+    const dim = new Date(qsDpYear, qsDpMonth + 1, 0).getDate();
+    const today = new Date();
+    const mNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+    document.getElementById('dp-month-title').textContent = mNames[qsDpMonth];
+    let h = '';
+    for (let i = 0; i < fd; i++) h += '<span class="empty"></span>';
+    for (let d = 1; d <= dim; d++) {
+      const isToday = (qsDpYear === today.getFullYear() && qsDpMonth === today.getMonth() && d === today.getDate());
+      const dateKey = `${qsDpYear}-${String(qsDpMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const sel = qsState.dateStr === dateKey;
+      h += `<span class="${isToday ? 'today' : ''}${sel ? ' selected' : ''}" onclick="qsSelectDate(${d})">${d}</span>`;
+    }
+    el.innerHTML = h;
+  }
+  function qsDpPrev() { qsDpMonth--; if (qsDpMonth < 0) { qsDpMonth = 11; qsDpYear--; } qsRenderDatePicker(); }
+  function qsDpNext() { qsDpMonth++; if (qsDpMonth > 11) { qsDpMonth = 0; qsDpYear++; } qsRenderDatePicker(); }
+  function qsSelectDate(d) {
+    qsState.dateStr = `${qsDpYear}-${String(qsDpMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    qsState.date = `${qsDpMonth + 1}月${d}日`;
+    qsUpdateInfo();
+    qsRenderDatePicker();
+  }
+
+  // Priority — now also stored as data for check-btn coloring
+  function qsSetPriority(label, color) {
+    qsState.priority = label;
+    qsState.priorityColor = color;
+    qsUpdateInfo();
+    qsCloseAllPanels();
+  }
+
+  // Quick date selection
+  function qsQuickDate(type) {
+    const today = new Date();
+    let d = new Date(today);
+    switch (type) {
+      case 'today': break;
+      case 'tomorrow': d.setDate(d.getDate() + 1); break;
+      case 'nextmon':
+        d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+        break;
+      case 'evening': break; // same day
+    }
+    qsDpYear = d.getFullYear(); qsDpMonth = d.getMonth();
+    qsState.dateStr = formatDate(d);
+    qsState.date = `${d.getMonth() + 1}月${d.getDate()}日`;
+    if (type === 'evening') qsState.date += '（夕方）';
+    qsUpdateInfo();
+    qsRenderDatePicker();
+  }
+
+  // Repeat
+  function qsSetRepeat(label) {
+    qsState.repeat = label;
+    qsUpdateInfo();
+    qsCloseAllPanels();
+  }
+
+  // Tag — prepend # at beginning
+  function qsAddTag() {
+    qsCloseCat(); qsCloseAllPanels();
+    const input = document.getElementById('add-title');
+    const val = input.value;
+    // Always prepend #tagname at the beginning
+    input.value = '#' + val;
+    input.focus();
+    // Position cursor after the #
+    input.setSelectionRange(1, 1);
+  }
+
+  // Emoji Picker (uses EMOJI_CATS from outer scope)
+  function qsRenderEmojiTabs() {
+    const tabsEl = document.getElementById('qs-emoji-tabs');
+    if (!tabsEl) return;
+    tabsEl.innerHTML = Object.keys(EMOJI_CATS).map(cat =>
+      `<button class="qs-emoji-tab${cat === qsEmojiCat ? ' active' : ''}" onclick="qsSwitchEmojiCat('${cat}')">${cat}</button>`
+    ).join('');
+  }
+  function qsRenderEmojiGrid() {
+    const gridEl = document.getElementById('qs-emoji-grid');
+    if (!gridEl) return;
+    const emojis = EMOJI_CATS[qsEmojiCat] || [];
+    gridEl.innerHTML = emojis.map(e =>
+      `<span class="qs-emoji-pick" onclick="qsPickEmoji('${e}')">${e}</span>`
+    ).join('');
+  }
+  function qsSwitchEmojiCat(cat) {
+    qsEmojiCat = cat;
+    qsRenderEmojiTabs();
+    qsRenderEmojiGrid();
+  }
+  function qsPickEmoji(emoji) {
+    qsState.emoji = emoji;
+    qsUpdateInfo();
+    qsCloseAllPanels();
+  }
+
+  // Category
+  function qsToggleCat() {
+    qsCloseAllPanels();
+    const popup = document.getElementById('cat-popup');
+    popup.classList.toggle('open');
+  }
+  function qsCloseCat() {
+    document.getElementById('cat-popup').classList.remove('open');
+  }
+  function qsRenderCatPopup() {
+    const popup = document.getElementById('cat-popup');
+    if (!popup) return;
+    // Build category list from state
+    const cats = new Set();
+    state.tasks.forEach(t => { if (t.category && t.category !== 'カレンダー') cats.add(t.category); });
+    if (state.savedCategories) state.savedCategories.forEach(c => { if (c !== 'カレンダー') cats.add(c); });
+    const catIcons = { '健康管理': '🏋️', '学習': '📖', '習慣': '🌿', '仕事': '💼' };
+    let h = '';
+    [...cats].forEach(cat => {
+      const icon = catIcons[cat] || '📁';
+      h += `<div class="cat-item" onclick="qsSelectCat('${icon}','${escapeHtml(cat)}')">\
+<span class="cat-item-icon">${icon}</span>${escapeHtml(cat)}</div>`;
+    });
+    h += `<div class="cat-item cat-add-item" onclick="openNewCat()"><span class="cat-item-icon">＋</span>カテゴリを追加する</div>`;
+    popup.innerHTML = h;
+  }
+  function qsSelectCat(icon, name) {
+    qsState.category = name;
+    qsUpdateInfo();
+    qsCloseCat();
+  }
+
+  // New Category
+  function openNewCat() {
+    qsCloseCat();
+    document.getElementById('newcat-overlay').classList.add('open');
+    document.getElementById('newcat-name').value = '';
+    document.querySelectorAll('.newcat-color').forEach(c => c.classList.remove('selected'));
+    document.querySelector('.newcat-color.none').classList.add('selected');
+    setTimeout(() => document.getElementById('newcat-name').focus(), 200);
+  }
+  function closeNewCat() {
+    document.getElementById('newcat-overlay').classList.remove('open');
+  }
+  function saveNewCat() {
+    const name = document.getElementById('newcat-name').value.trim();
+    if (name) {
+      saveCategory(name);
+      qsState.category = name;
+      qsUpdateInfo();
+      qsRenderCatPopup();
+    }
+    closeNewCat();
+  }
+  function selectNewCatColor(el) {
+    document.querySelectorAll('.newcat-color').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
+  // Update info chips
+  function qsUpdateInfo() {
+    const el = document.getElementById('add-selected-info');
+    if (!el) return;
+    let chips = '';
+    if (qsState.emoji) chips += `<span class="add-info-chip emoji">${qsState.emoji}</span>`;
+    if (qsState.date) chips += `<span class="add-info-chip date">📅 ${qsState.date}</span>`;
+    if (qsState.priority) chips += `<span class="add-info-chip priority" style="background:${qsState.priorityColor}20;color:${qsState.priorityColor}">🚩 ${qsState.priority}</span>`;
+    if (qsState.repeat) chips += `<span class="add-info-chip repeat">🔄 ${qsState.repeat}</span>`;
+    if (qsState.category) chips += `<span class="add-info-chip category">📋 ${qsState.category}</span>`;
+    el.innerHTML = chips;
+  }
+
+  // Submit - creates a real task using existing addTask logic
+  function qsSubmit() {
+    const name = document.getElementById('add-title').value.trim();
+    if (!name) { document.getElementById('add-title').focus(); return; }
+    // Parse frequency from repeat setting
+    let freq = '毎日', freqCount = null;
+    if (qsState.repeat === '週3回') { freq = '週'; freqCount = 3; }
+    else if (qsState.repeat === '平日のみ') { freq = '毎日'; }
+    else if (qsState.repeat === '週末のみ') { freq = '週'; freqCount = 2; }
+    else if (qsState.repeat === '' || !qsState.repeat) { freq = '毎日'; }
+
+    state.tasks.push({
+      id: genId(), name,
+      emoji: qsState.emoji || '',
+      timing: 'いつでも',
+      frequency: freq,
+      freqCount: freqCount,
+      url: '',
+      category: qsState.category || '',
+      createdDate: qsState.dateStr || todayStr(),
+      customIcon: null,
+      notifyTime: '',
+      lastNotifiedDate: null,
+      priority: qsState.priority || '',
+    });
+    if (qsState.category) saveCategory(qsState.category);
+    resetCelebration(); save(); syncNotifySchedules();
+    closeAddSheet();
+    renderAll();
+    showToast('✨ タスクを追加しました');
+  }
+
+  // Expose to window for onclick handlers
+  window.openAddSheet = openAddSheet;
+  window.closeAddSheet = closeAddSheet;
+  window.qsTogglePanel = qsTogglePanel;
+  window.qsDpPrev = qsDpPrev;
+  window.qsDpNext = qsDpNext;
+  window.qsSelectDate = qsSelectDate;
+  window.qsSetPriority = qsSetPriority;
+  window.qsSetRepeat = qsSetRepeat;
+  window.qsAddTag = qsAddTag;
+  window.qsToggleCat = qsToggleCat;
+  window.qsSelectCat = qsSelectCat;
+  window.qsPickEmoji = qsPickEmoji;
+  window.qsSwitchEmojiCat = qsSwitchEmojiCat;
+  window.openNewCat = openNewCat;
+  window.closeNewCat = closeNewCat;
+  window.saveNewCat = saveNewCat;
+  window.selectNewCatColor = selectNewCatColor;
+  window.qsQuickDate = qsQuickDate;
+
+  // ===== Drawer Menu Logic =====
+  function openDrawer() {
+    renderDrawerContent();
+    document.getElementById('drawer-overlay').classList.add('open');
+  }
+  function closeDrawer() {
+    document.getElementById('drawer-overlay').classList.remove('open');
+  }
+  function renderDrawerContent() {
+    // All count
+    const allCount = document.getElementById('drawer-all-count');
+    if (allCount) allCount.textContent = state.tasks.length;
+
+    // Tags: extract all tags from all task names
+    const tagsEl = document.getElementById('drawer-tags');
+    if (tagsEl) {
+      const allTags = new Set();
+      state.tasks.forEach(t => {
+        const tags = t.name.match(/#[^\s#]+/g) || [];
+        tags.forEach(tag => allTags.add(tag));
+      });
+      if (allTags.size === 0) {
+        tagsEl.innerHTML = '<div class="drawer-empty">タグはまだありません</div>';
+      } else {
+        tagsEl.innerHTML = [...allTags].map(tag => {
+          const count = state.tasks.filter(t => t.name.includes(tag)).length;
+          const isActive = state.activeFilter === 'tag:' + tag;
+          return `<div class="drawer-item${isActive ? ' active' : ''}" data-drawer-filter="tag:${escapeHtml(tag)}">
+            <span class="drawer-item-icon">🏷️</span>
+            <span class="drawer-item-label">${escapeHtml(tag)}</span>
+            <span class="drawer-item-count">${count}</span>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    // Categories
+    const catsEl = document.getElementById('drawer-categories');
+    if (catsEl) {
+      const cats = [...new Set(state.tasks.map(t => t.category).filter(Boolean))];
+      const savedCats = (state.savedCategories || []).filter(c => !cats.includes(c));
+      const allCats = [...cats, ...savedCats];
+      if (allCats.length === 0) {
+        catsEl.innerHTML = '<div class="drawer-empty">カテゴリはありません</div>';
+      } else {
+        catsEl.innerHTML = allCats.map(cat => {
+          const count = state.tasks.filter(t => t.category === cat).length;
+          const isActive = state.activeFilter === cat;
+          const catColor = getCategoryColor(cat);
+          return `<div class="drawer-item${isActive ? ' active' : ''}" data-drawer-filter="${escapeHtml(cat)}">
+            <span class="drawer-item-icon" ${catColor ? `style="color:${catColor}"` : ''}>📂</span>
+            <span class="drawer-item-label">${escapeHtml(cat)}</span>
+            ${count > 0 ? `<span class="drawer-item-count">${count}</span>` : ''}
+          </div>`;
+        }).join('');
+      }
+    }
+
+    // Active state for "all"
+    const allItem = document.querySelector('[data-drawer-filter="all"]');
+    if (allItem) allItem.classList.toggle('active', state.activeFilter === 'all');
+
+    // Click handlers for drawer items
+    document.querySelectorAll('[data-drawer-filter]').forEach(item => {
+      item.addEventListener('click', () => {
+        const filter = item.dataset.drawerFilter;
+        if (filter.startsWith('tag:')) {
+          state.activeFilter = filter;
+        } else {
+          state.activeFilter = filter;
+        }
+        closeDrawer();
+        renderAll();
+      });
+    });
+  }
+
+  function getCategoryColor(cat) {
+    // Check savedCategories for color info
+    if (state.savedCategories) {
+      const found = state.savedCategories.find(c => typeof c === 'object' && c.name === cat);
+      if (found && found.color) return found.color;
+    }
+    return '';
+  }
+
+  window.openDrawer = openDrawer;
+  window.closeDrawer = closeDrawer;
+
+  // Wire up submit button
+  document.addEventListener('DOMContentLoaded', () => {
+    const submitBtn = document.getElementById('qs-submit-btn');
+    if (submitBtn) submitBtn.addEventListener('click', qsSubmit);
+  });
 })();
