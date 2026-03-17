@@ -28,21 +28,23 @@
     <div id="main-view" class="view active">
       <header class="header">
         <div class="header-left">
-          <div class="header-year" id="header-year"></div>
-          <div class="header-date-row">
-            <span class="header-month" id="header-month"></span>
-            <span class="header-day" id="header-day"></span>
-            <span class="header-weekday" id="header-weekday"></span>
+          <button class="icon-btn" id="drawer-btn" aria-label="メニュー">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <div class="header-text">
+            <div class="header-year" id="header-year"></div>
+            <div class="header-date-row">
+              <span class="header-month" id="header-month"></span>
+              <span class="header-day" id="header-day"></span>
+              <span class="header-weekday" id="header-weekday"></span>
+            </div>
           </div>
         </div>
         <div class="header-right">
-          <button class="icon-btn" id="settings-btn" aria-label="設定">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3" />
-              <path
-                d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-            </svg>
-          </button>
           <div class="streak-badge" id="streak-badge">
             <span class="streak-icon">🔥</span>
             <span class="streak-count" id="streak-count">0</span>
@@ -114,25 +116,70 @@
       </button>
     </div>
 
+    <!-- ===== サイドドロワー ===== -->
+    <div class="drawer-overlay" id="drawer-overlay">
+      <div class="drawer" id="drawer">
+        <div class="drawer-header">
+          <span class="drawer-title">メニュー</span>
+          <button class="drawer-close" id="drawer-close">✕</button>
+        </div>
+        <div class="drawer-section">
+          <div class="drawer-item active" data-drawer-filter="all">
+            <span class="drawer-item-icon">📋</span>
+            <span class="drawer-item-label">すべて</span>
+            <span class="drawer-item-count" id="drawer-all-count">0</span>
+          </div>
+        </div>
+        <div class="drawer-section">
+          <div class="drawer-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
+            </svg>
+            タグ
+          </div>
+          <div id="drawer-tags"></div>
+        </div>
+        <div class="drawer-divider"></div>
+        <div class="drawer-section" id="drawer-categories">
+        </div>
+        <div class="drawer-divider"></div>
+        <div class="drawer-section">
+          <div class="drawer-item" id="drawer-settings-btn">
+            <span class="drawer-item-icon">⚙️</span>
+            <span class="drawer-item-label">設定</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== カレンダービュー ===== -->
     <div id="calendar-view" class="view">
       <header class="header">
         <div class="header-left">
-          <div class="header-year" id="cal-year"></div>
-          <div class="header-date-row">
-            <span class="header-month" id="cal-month"></span>
-            <span class="stats-label">年間カレンダー</span>
-          </div>
+          <button class="cal-mode-toggle" id="cal-mode-toggle" aria-label="表示切替">☰</button>
+          <span class="cal-title" id="cal-title"></span>
         </div>
         <div class="header-right">
-          <div class="stats-nav-arrows">
+          <div class="cal-header-nav">
             <button class="arrow-btn" id="cal-prev">‹</button>
             <button class="arrow-btn" id="cal-next">›</button>
           </div>
         </div>
       </header>
 
-      <div class="cal-content" id="cal-content"></div>
+      <div id="cal-month-view">
+        <div class="new-month-weekdays">
+          <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+        </div>
+        <div class="new-month-grid" id="cal-month-grid"></div>
+      </div>
+      <div id="cal-year-view" style="display:none">
+        <div class="cal-year-grid" id="cal-year-grid"></div>
+      </div>
+      <div id="cal-list-view" style="display:none">
+        <div class="cal-list-content" id="cal-list-content"></div>
+      </div>
 
       <nav class="bottom-nav">
         <button class="nav-btn" data-view="main-view">
@@ -219,6 +266,18 @@
           <h3 class="chart-title">タスク別達成率</h3>
           <div id="task-stats-list"></div>
         </div>
+        <div class="chart-card">
+          <h3 class="chart-title">🔥 タスク別最大ストリーク</h3>
+          <div id="task-streak-list"></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">📊 曜日別達成傾向</h3>
+          <div id="day-of-week-stats"></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">⏰ 時間帯別達成傾向</h3>
+          <div id="time-of-day-stats"></div>
+        </div>
       </div>
 
       <nav class="bottom-nav">
@@ -256,6 +315,154 @@
           <span>メモ</span>
         </button>
       </nav>
+    </div>
+
+    <!-- ===== クイック追加ボトムシート ===== -->
+    <div class="add-overlay" id="add-overlay" onclick="if(event.target===this)closeAddSheet()">
+      <div class="add-sheet">
+        <input type="text" class="add-input" id="add-title" placeholder="何をしたいですか？">
+        <div class="add-selected-info" id="add-selected-info"></div>
+
+        <!-- サブパネル: 日付 -->
+        <div class="add-panel" id="panel-date">
+          <div class="dp-quick-btns">
+            <button class="dp-quick-btn" onclick="qsQuickDate('today')"><span class="dp-quick-icon">📅</span>今日</button>
+            <button class="dp-quick-btn" onclick="qsQuickDate('tomorrow')"><span
+                class="dp-quick-icon">☀️</span>明日</button>
+            <button class="dp-quick-btn" onclick="qsQuickDate('nextmon')"><span
+                class="dp-quick-icon">📆</span>次月曜</button>
+            <button class="dp-quick-btn" onclick="qsQuickDate('evening')"><span
+                class="dp-quick-icon">🌙</span>今日夕方</button>
+          </div>
+          <div class="dp-header">
+            <button class="dp-nav" id="dp-prev" onclick="qsDpPrev()">‹</button>
+            <span class="dp-title" id="dp-month-title">3月</span>
+            <button class="dp-nav" id="dp-next" onclick="qsDpNext()">›</button>
+          </div>
+          <div class="dp-weekdays">
+            <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+          </div>
+          <div class="dp-days" id="dp-days"></div>
+        </div>
+
+        <!-- サブパネル: 優先度 -->
+        <div class="add-panel" id="panel-priority">
+          <div class="priority-list">
+            <div class="priority-item" onclick="qsSetPriority('高','#ef4444')"><span class="priority-flag">🚩</span>高い優先度
+            </div>
+            <div class="priority-item" onclick="qsSetPriority('中','#f97316')"><span
+                class="priority-flag">🏳️</span>中程度の優先度</div>
+            <div class="priority-item" onclick="qsSetPriority('低','#60a5fa')"><span class="priority-flag">🔵</span>低い優先度
+            </div>
+            <div class="priority-item" onclick="qsSetPriority('','')" style="color:var(--text-dim)"><span
+                class="priority-flag">⚪</span>優先度なし</div>
+          </div>
+        </div>
+
+        <!-- サブパネル: リピート -->
+        <div class="add-panel" id="panel-repeat">
+          <div class="priority-list">
+            <div class="priority-item" onclick="qsSetRepeat('毎日')"><span class="priority-flag">📅</span>毎日</div>
+            <div class="priority-item" onclick="qsSetRepeat('平日のみ')"><span class="priority-flag">🏢</span>平日のみ（月〜金）
+            </div>
+            <div class="priority-item" onclick="qsSetRepeat('週3回')"><span class="priority-flag">3️⃣</span>週3回</div>
+            <div class="priority-item" onclick="qsSetRepeat('週末のみ')"><span class="priority-flag">🌴</span>週末のみ（土・日）
+            </div>
+            <div class="priority-item" onclick="qsSetRepeat('')" style="color:var(--text-dim)"><span
+                class="priority-flag">⚪</span>リピートなし</div>
+          </div>
+        </div>
+
+        <!-- サブパネル: 絵文字 -->
+        <div class="add-panel" id="panel-emoji">
+          <div class="qs-emoji-tabs" id="qs-emoji-tabs"></div>
+          <div class="qs-emoji-grid" id="qs-emoji-grid"></div>
+        </div>
+
+        <!-- カテゴリポップアップ -->
+        <div class="cat-popup" id="cat-popup"></div>
+
+        <!-- ツールバー -->
+        <div class="add-toolbar">
+          <button class="add-tool-btn" id="tool-date" onclick="qsTogglePanel('date')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>今日
+          </button>
+          <button class="add-tool-btn" id="tool-priority" onclick="qsTogglePanel('priority')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+              <line x1="4" y1="22" x2="4" y2="15" />
+            </svg>
+          </button>
+          <button class="add-tool-btn" id="tool-tag" onclick="qsAddTag()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
+            </svg>
+          </button>
+          <button class="add-tool-btn" id="tool-category" onclick="qsToggleCat()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="5" rx="1" />
+              <rect x="2" y="10" width="20" height="5" rx="1" />
+              <rect x="2" y="17" width="20" height="5" rx="1" />
+            </svg>
+          </button>
+          <button class="add-tool-btn" id="tool-repeat" onclick="qsTogglePanel('repeat')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="17 1 21 5 17 9" />
+              <path d="M3 11V9a4 4 0 014-4h14" />
+              <polyline points="7 23 3 19 7 15" />
+              <path d="M21 13v2a4 4 0 01-4 4H3" />
+            </svg>
+          </button>
+          <button class="add-tool-btn" id="tool-emoji" onclick="qsTogglePanel('emoji')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+              <line x1="9" y1="9" x2="9.01" y2="9" />
+              <line x1="15" y1="9" x2="15.01" y2="9" />
+            </svg>
+          </button>
+          <span class="add-tool-spacer"></span>
+          <button class="add-send-btn" id="qs-submit-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="19" x2="12" y2="5" />
+              <polyline points="5 12 12 5 19 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新規カテゴリモーダル -->
+    <div class="newcat-overlay" id="newcat-overlay" onclick="if(event.target===this)closeNewCat()">
+      <div class="newcat-sheet">
+        <h3>新しいカテゴリ</h3>
+        <input type="text" id="newcat-name" placeholder="カテゴリ名">
+        <div class="newcat-colors">
+          <div class="newcat-color none selected" onclick="selectNewCatColor(this,'')" data-color=""></div>
+          <div class="newcat-color" style="background:#ef4444" onclick="selectNewCatColor(this,'#ef4444')"
+            data-color="#ef4444"></div>
+          <div class="newcat-color" style="background:#f97316" onclick="selectNewCatColor(this,'#f97316')"
+            data-color="#f97316"></div>
+          <div class="newcat-color" style="background:#eab308" onclick="selectNewCatColor(this,'#eab308')"
+            data-color="#eab308"></div>
+          <div class="newcat-color" style="background:#22c55e" onclick="selectNewCatColor(this,'#22c55e')"
+            data-color="#22c55e"></div>
+          <div class="newcat-color" style="background:#3b82f6" onclick="selectNewCatColor(this,'#3b82f6')"
+            data-color="#3b82f6"></div>
+          <div class="newcat-color" style="background:#a855f7" onclick="selectNewCatColor(this,'#a855f7')"
+            data-color="#a855f7"></div>
+        </div>
+        <div class="newcat-btns">
+          <button class="newcat-cancel" onclick="closeNewCat()">キャンセル</button>
+          <button class="newcat-save" onclick="saveNewCat()">作成</button>
+        </div>
+      </div>
     </div>
 
     <!-- ===== タスク追加モーダル ===== -->
