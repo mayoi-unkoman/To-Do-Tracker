@@ -39,6 +39,17 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+[contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 html {
@@ -1538,6 +1549,75 @@ input:focus {
   text-align: right;
 }
 
+/* ---- URL Toggle ---- */
+.url-toggle-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.url-toggle-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.url-toggle-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.url-input-wrap {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.url-input-wrap.open {
+  max-height: 60px;
+  margin-top: 6px;
+}
+
+/* ---- Task Description Line ---- */
+.task-description-line {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  opacity: 0.7;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+/* ---- Drawer Hint ---- */
+.drawer-hint {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  opacity: 0.5;
+  margin-left: 6px;
+  font-weight: 400;
+}
+
+/* ---- Modal Textarea ---- */
+#task-description,
+#edit-task-description {
+  width: 100%;
+  background: var(--card-inner);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 50px;
+}
+
 .stats-empty {
   text-align: center;
   color: var(--text-dim);
@@ -1829,6 +1909,7 @@ input:focus {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     -webkit-user-select: none;
+    user-select: none;
   }
 }
 
@@ -2783,9 +2864,7 @@ input:focus {
   color: #60a5fa;
 }
 
-.add-info-chip.priority {
-  /* dynamic via style attr */
-}
+/* .add-info-chip.priority — styled dynamically via style attribute */
 
 .add-info-chip.repeat {
   background: rgba(168, 85, 247, 0.15);
@@ -3548,6 +3627,62 @@ input:focus {
   gap: 10px;
 }
 
+/* ---- Calendar Mode Dropdown ---- */
+.cal-mode-dropdown {
+  position: relative;
+}
+
+.cal-mode-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 6px 0;
+  min-width: 140px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  margin-top: 4px;
+}
+
+.cal-mode-dropdown.open .cal-mode-menu {
+  display: block;
+}
+
+.cal-mode-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: background 0.15s;
+}
+
+.cal-mode-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.cal-mode-check {
+  width: 16px;
+  font-size: 0.85rem;
+}
+
+.cal-mode-check.active::before {
+  content: '✓';
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.cal-mode-icon {
+  font-size: 1.1rem;
+  opacity: 0.7;
+}
+
 .header-text {
   display: flex;
   flex-direction: column;
@@ -3561,14 +3696,6 @@ input:focus {
   border-color: #ef4444;
 }
 
-.check-btn[data-priority="高"]::after {
-  content: '';
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #ef4444;
-}
-
 .check-btn[data-priority="高"].checked {
   background: #ef4444;
   border-color: #ef4444;
@@ -3579,14 +3706,6 @@ input:focus {
   border-color: #eab308;
 }
 
-.check-btn[data-priority="中"]::after {
-  content: '';
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #eab308;
-}
-
 .check-btn[data-priority="中"].checked {
   background: #eab308;
   border-color: #eab308;
@@ -3595,14 +3714,6 @@ input:focus {
 
 .check-btn[data-priority="低"] {
   border-color: #3b82f6;
-}
-
-.check-btn[data-priority="低"]::after {
-  content: '';
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #3b82f6;
 }
 
 .check-btn[data-priority="低"].checked {
