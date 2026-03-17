@@ -137,6 +137,15 @@
       state.categoryOrder = Array.isArray(d.categoryOrder) ? d.categoryOrder : [];
       state.savedMemoCategories = Array.isArray(d.savedMemoCategories) ? d.savedMemoCategories : [];
       state.memoCategoryOrder = Array.isArray(d.memoCategoryOrder) ? d.memoCategoryOrder : [];
+      // タグ自動移行: name内の#tagをtagsフィールドに分離
+      state.tasks.forEach(t => {
+        if (!t.tags) {
+          const extracted = t.name.match(/#[^\s#]+/g) || [];
+          t.tags = extracted.map(x => x.replace(/^#/, ''));
+          t.name = t.name.replace(/#[^\s#]+/g, '').trim();
+        }
+        if (t.description === undefined) t.description = '';
+      });
       if (!d.version || d.version < DATA_VERSION) save();
       return d.initialized === true || state.tasks.length > 0;
     } catch (e) { return false; }
@@ -150,7 +159,8 @@
   // ---- Task Queries ----
   function getTasksForDate(ds) { return state.tasks.filter(t => !t.createdDate || t.createdDate <= ds); }
   function getCompletionForDate(ds) {
-    const tasks = getTasksForDate(ds).filter(t => t.category !== 'カレンダー');
+    const dateObj = parseDate(ds);
+    const tasks = getTasksForDate(ds).filter(t => t.category !== 'カレンダー' && isTaskActiveOnDate(t, dateObj));
     const rec = state.records[ds] || {};
     const done = tasks.filter(t => isCompleted(rec[t.id])).length;
     return { total: tasks.length, done, pct: tasks.length > 0 ? done / tasks.length : 0 };
@@ -779,7 +789,7 @@
     const items = document.querySelectorAll('.task-item');
     items.forEach(el => {
       const id = el.dataset.id;
-      if (id && rec[id] !== true) {
+      if (id && !isCompleted(rec[id])) {
         el.classList.add('task-highlight');
         setTimeout(() => el.classList.remove('task-highlight'), 3000);
       }
@@ -891,11 +901,20 @@
   // ---- Render: Task List ----
   function renderTaskList() {
     const c = $('#task-list');
-    let tasks = state.tasks;
+    let tasks = state.tasks.filter(t => t.category !== 'カレンダー');
     if (state.activeFilter !== 'all') {
       if (state.activeFilter.startsWith('tag:')) {
         const tag = state.activeFilter.replace('tag:', '');
-        tasks = tasks.filter(t => t.name.includes(tag));
+        tasks = tasks.filter(t => (t.tags || []).includes(tag));
+      } else if (state.activeFilter.startsWith('priority:')) {
+        const pri = state.activeFilter.replace('priority:', '');
+        tasks = tasks.filter(t => {
+          const p = (t.priority || '').toLowerCase();
+          if (pri === 'high') return p === '高' || p === 'high' || p === '❗';
+          if (pri === 'medium') return p === '中' || p === 'medium' || p === '❕';
+          if (pri === 'low') return p === '低' || p === 'low' || p === '❓';
+          return false;
+        });
       } else {
         tasks = tasks.filter(t => t.category === state.activeFilter);
       }
@@ -934,15 +953,17 @@
       const hasMemo = memo ? 'memo-has' : 'memo-empty';
       const pri = task.priority || '';
       const priAttr = pri ? ` data-priority="${pri}"` : '';
-      // Extract tags from task name
-      const tags = (task.name.match(/#[^\s#]+/g) || []);
-      const tagHtml = tags.map(t => `<span class="task-tag-badge">${escapeHtml(t)}</span>`).join('');
-      const displayName = task.name.replace(/#[^\s#]+/g, '').trim();
+      // Tags from task.tags field
+      const tags = task.tags || [];
+      const tagHtml = tags.map(t => `<span class="task-tag-badge">${escapeHtml('#' + t)}</span>`).join('');
+      const displayName = task.name;
+      const descLine = task.description ? `<div class="task-description-line">${escapeHtml(task.description.length > 40 ? task.description.slice(0, 40) + '…' : task.description)}</div>` : '';
       return `<div class="task-item" data-id="${task.id}" draggable="true">
         <div class="drag-handle" title="ドラッグで並び替え">≡</div>
         <div class="task-timing">${escapeHtml(task.timing || 'いつでも')}</div>
         <div class="task-center" data-task-id="${task.id}">
           <div class="task-name"><span class="task-label">${icon}${escapeHtml(displayName)}</span></div>
+          ${descLine}
           <div class="task-meta">
             ${task.category ? `<span class="task-category-tag">${escapeHtml(task.category)}</span>` : ''}
             ${tagHtml}
@@ -1013,6 +1034,7 @@
   // ---- Drag & Drop (Desktop + Touch/iOS) ----
   let draggedTaskId = null;
   let touchDragEl = null, touchStartY = 0, touchClone = null;
+  let _dragTouchListenersAdded = false;
   function setupDragAndDrop() {
     const items = $$('.task-item[draggable]');
     items.forEach(item => {
@@ -1051,28 +1073,32 @@
         item.classList.add('dragging');
       }, { passive: true });
     });
-    document.addEventListener('touchmove', e => {
-      if (!touchDragEl) return;
-      e.preventDefault();
-      const y = e.touches[0].clientY;
-      const els = $$('.task-item');
-      els.forEach(el => {
-        el.classList.remove('drag-over');
-        if (el === touchDragEl) return;
-        const r = el.getBoundingClientRect();
-        if (y > r.top && y < r.bottom) el.classList.add('drag-over');
+    // Bug#4 fix: Register document-level touch listeners only once
+    if (!_dragTouchListenersAdded) {
+      _dragTouchListenersAdded = true;
+      document.addEventListener('touchmove', e => {
+        if (!touchDragEl) return;
+        e.preventDefault();
+        const y = e.touches[0].clientY;
+        const els = $$('.task-item');
+        els.forEach(el => {
+          el.classList.remove('drag-over');
+          if (el === touchDragEl) return;
+          const r = el.getBoundingClientRect();
+          if (y > r.top && y < r.bottom) el.classList.add('drag-over');
+        });
+      }, { passive: false });
+      document.addEventListener('touchend', () => {
+        if (!touchDragEl) return;
+        const over = document.querySelector('.task-item.drag-over');
+        if (over && draggedTaskId) {
+          reorderTask(draggedTaskId, over.dataset.id);
+        }
+        touchDragEl.classList.remove('dragging');
+        $$('.task-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+        touchDragEl = null; draggedTaskId = null;
       });
-    }, { passive: false });
-    document.addEventListener('touchend', () => {
-      if (!touchDragEl) return;
-      const over = document.querySelector('.task-item.drag-over');
-      if (over && draggedTaskId) {
-        reorderTask(draggedTaskId, over.dataset.id);
-      }
-      touchDragEl.classList.remove('dragging');
-      $$('.task-item.drag-over').forEach(el => el.classList.remove('drag-over'));
-      touchDragEl = null; draggedTaskId = null;
-    });
+    }
   }
   function reorderTask(fromId, toId) {
     const fromIdx = state.tasks.findIndex(t => t.id === fromId);
@@ -1092,7 +1118,6 @@
     const monthView = $('#cal-month-view');
     const yearView = $('#cal-year-view');
     const listView = $('#cal-list-view');
-    const modeBtn = $('#cal-mode-toggle');
 
     monthView.style.display = 'none';
     yearView.style.display = 'none';
@@ -1101,19 +1126,21 @@
     if (state.calMode === 'month') {
       calTitle.textContent = y + '年 ' + mNames[m];
       monthView.style.display = '';
-      modeBtn.textContent = '📅';
       renderMonthCalendar(y, m);
     } else if (state.calMode === 'list') {
       calTitle.textContent = y + '年 ' + mNames[m];
       listView.style.display = '';
-      modeBtn.textContent = '📝';
       renderListCalendar(y, m);
     } else {
       calTitle.textContent = y + '年';
       yearView.style.display = '';
-      modeBtn.textContent = '📆';
       renderYearCalendar(y);
     }
+    // Update dropdown checkmarks
+    ['list', 'year', 'month'].forEach(mode => {
+      const ck = $(`#cal-mode-check-${mode}`);
+      if (ck) ck.classList.toggle('active', state.calMode === mode);
+    });
   }
 
   // Task color mapping
@@ -1144,7 +1171,7 @@
     for (let d = 1; d <= dim; d++) {
       const k = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const isT = k === tk;
-      const tasks = getTasksForDate(k).filter(t => t.category !== 'カレンダー');
+      const tasks = getTasksForDate(k).filter(t => t.category === 'カレンダー');
       const rec = state.records[k] || {};
       const scheduled = state.scheduledTasks.filter(st => st.date === k);
       const doneTasks = tasks.filter(t => isCompleted(rec[t.id]));
@@ -1215,7 +1242,7 @@
       const date = new Date(y, m, d);
       const dayLabel = WEEKDAYS[date.getDay()];
       const isToday = k === tk;
-      const tasks = getTasksForDate(k).filter(t => t.category !== 'カレンダー');
+      const tasks = getTasksForDate(k).filter(t => t.category === 'カレンダー');
       const scheduled = state.scheduledTasks.filter(st => st.date === k);
       const rec = state.records[k] || {};
 
@@ -1242,9 +1269,9 @@
       tasks.forEach(t => {
         const done = isCompleted(rec[t.id]);
         const pri = t.priority || '';
-        html += `<div class="cal-list-item${done ? ' done' : ''}">`;
-        html += `<span class="cal-list-item-check${done ? ' checked' : ''}" ${pri ? `data-priority="${pri}"` : ''}>${done ? '✓' : '○'}</span>`;
-        html += `<span class="cal-list-item-name">${t.emoji || ''} ${escapeHtml(t.name.replace(/#[^\s#]+/g, '').trim())}</span>`;
+        html += `<div class="cal-list-item${done ? ' done' : ''}" data-task-id="${t.id}" data-date="${k}">`;
+        html += `<span class="cal-list-item-check${done ? ' checked' : ''}" ${pri ? `data-priority="${pri}"` : ''} data-check-task="${t.id}" data-check-date="${k}">${done ? '✓' : '○'}</span>`;
+        html += `<span class="cal-list-item-name">${t.emoji || ''} ${escapeHtml(t.name)}</span>`;
         html += `</div>`;
       });
 
@@ -1262,6 +1289,35 @@
         const dateStr = dayEl.querySelector('.cal-list-item')?.dataset?.date;
         // Get date from day number
         const dayNum = hdr.querySelector('.cal-list-day-num')?.textContent;
+        if (dayNum) {
+          const dk = `${y}-${String(m + 1).padStart(2, '0')}-${String(parseInt(dayNum)).padStart(2, '0')}`;
+          openDayDetail(dk);
+        }
+      });
+    });
+
+    // B5: Click on list task items for check and detail
+    content.querySelectorAll('[data-check-task]').forEach(chk => {
+      chk.style.cursor = 'pointer';
+      chk.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const taskId = chk.dataset.checkTask;
+        const dateKey = chk.dataset.checkDate;
+        if (!state.records[dateKey]) state.records[dateKey] = {};
+        const was = isCompleted(state.records[dateKey][taskId]);
+        if (was) {
+          state.records[dateKey][taskId] = false;
+        } else {
+          const now = new Date();
+          state.records[dateKey][taskId] = { done: true, completedAt: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` };
+        }
+        save(); renderCalendar(); renderAll();
+      });
+    });
+    content.querySelectorAll('.cal-list-item[data-task-id]').forEach(item => {
+      item.style.cursor = 'pointer';
+      item.addEventListener('click', () => {
+        const dayNum = item.closest('.cal-list-day')?.querySelector('.cal-list-day-num')?.textContent;
         if (dayNum) {
           const dk = `${y}-${String(m + 1).padStart(2, '0')}-${String(parseInt(dayNum)).padStart(2, '0')}`;
           openDayDetail(dk);
@@ -1297,7 +1353,7 @@
       tasks.forEach(t => {
         const done = isCompleted(rec[t.id]);
         const memo = getTaskMemo(t.id, dateStr);
-        html += `<div class="detail-item ${done ? 'done' : ''}">${t.emoji || ''} ${escapeHtml(t.name)} ${done ? '<span class="detail-check">✅</span>' : '<span class="detail-check dim">○</span>'}${memo ? `<div class="task-memo-line">📝 ${escapeHtml(memo)}</div>` : ''}</div>`;
+        html += `<div class="detail-item ${done ? 'done' : ''}" data-detail-task="${t.id}" style="cursor:pointer">${t.emoji || ''} ${escapeHtml(t.name)} <span class="detail-check${done ? '' : ' dim'}" data-detail-check="${t.id}">${done ? '✅' : '○'}</span>${memo ? `<div class="task-memo-line">📝 ${escapeHtml(memo)}</div>` : ''}</div>`;
       });
     }
     if (!scheduled.length && !tasks.length) html = '<p class="empty-sub" style="padding:20px;text-align:center;">この日のデータはありません</p>';
@@ -1334,6 +1390,26 @@
       item.addEventListener('touchstart', startLP, { passive: true });
       item.addEventListener('touchend', cancelLP);
       item.addEventListener('touchcancel', cancelLP);
+    });
+    // B5: Click to toggle task completion in detail view
+    $('#day-detail-content').querySelectorAll('[data-detail-check]').forEach(chk => {
+      chk.style.cursor = 'pointer';
+      chk.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const taskId = chk.dataset.detailCheck;
+        if (!state.records[dateStr]) state.records[dateStr] = {};
+        const was = isCompleted(state.records[dateStr][taskId]);
+        if (was) {
+          state.records[dateStr][taskId] = false;
+        } else {
+          const now = new Date();
+          state.records[dateStr][taskId] = { done: true, completedAt: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` };
+        }
+        save(); renderCalendar(); renderAll();
+        // Re-open detail to refresh
+        closeModal('day-detail-overlay');
+        openDayDetail(dateStr);
+      });
     });
     $('#day-detail-add-btn').onclick = () => {
       closeModal('day-detail-overlay');
@@ -1607,8 +1683,8 @@
       const k = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const r = state.records[k];
       if (!r) continue;
-      Object.values(r).forEach(val => {
-        if (!val || val === 'memos') return;
+      Object.entries(r).forEach(([key, val]) => {
+        if (key === 'memos' || !val) return;
         const at = getCompletedAt(val);
         if (!at) return;
         const hour = parseInt(at.split(':')[0], 10);
@@ -1811,7 +1887,19 @@
     $('#edit-task-name').value = t.name;
     $('#edit-emoji-picker-btn').textContent = t.emoji || '😊';
     $('#edit-task-url').value = t.url || '';
+    // Auto-show URL input if task has URL
+    const editUrlWrap = $('#edit-modal-overlay .url-input-wrap');
+    const editUrlBtn = $('#edit-url-toggle-btn');
+    if (t.url && t.url.trim()) {
+      if (editUrlWrap) editUrlWrap.classList.add('open');
+      if (editUrlBtn) editUrlBtn.classList.add('active');
+    } else {
+      if (editUrlWrap) editUrlWrap.classList.remove('open');
+      if (editUrlBtn) editUrlBtn.classList.remove('active');
+    }
     $('#edit-task-category').value = t.category || '';
+    if ($('#edit-task-tags')) $('#edit-task-tags').value = (t.tags || []).join(', ');
+    if ($('#edit-task-description')) $('#edit-task-description').value = t.description || '';
     $$('input[name="edit-timing"]').forEach(r => { r.checked = r.value === (t.timing || 'いつでも'); });
     const fv = t.frequency === '週' ? '週' : '毎日';
     $$('input[name="edit-frequency"]').forEach(r => { r.checked = r.value === fv; });
@@ -1829,10 +1917,16 @@
 
   function addTask(e) {
     e.preventDefault();
-    const name = $('#task-name').value.trim(); if (!name) return;
+    const rawName = $('#task-name').value.trim(); if (!rawName) return;
     const emoji = $('#emoji-picker-btn').textContent;
+    // タグを名前から分離
+    const extractedTags = rawName.match(/#[^\s#]+/g) || [];
+    const cleanName = rawName.replace(/#[^\s#]+/g, '').trim();
+    const tagsInput = $('#task-tags')?.value.trim() || '';
+    const inputTags = tagsInput ? tagsInput.split(/[,、\s]+/).map(t => t.replace(/^#/, '').trim()).filter(Boolean) : [];
+    const allTags = [...new Set([...extractedTags.map(t => t.replace(/^#/, '')), ...inputTags])];
     state.tasks.push({
-      id: genId(), name,
+      id: genId(), name: cleanName || rawName,
       emoji: emoji !== '😊' ? emoji : '',
       timing: document.querySelector('input[name="timing"]:checked')?.value || 'いつでも',
       frequency: document.querySelector('input[name="frequency"]:checked')?.value || '毎日',
@@ -1844,6 +1938,8 @@
       notifyTime: $('#task-notify-time').value || '',
       lastNotifiedDate: null,
       priority: '',
+      tags: allTags,
+      description: $('#task-description')?.value.trim() || '',
     });
     resetCelebration(); save(); syncNotifySchedules(); closeModal('modal-overlay'); renderAll(); showToast('✨ タスクを追加しました');
   }
@@ -1859,9 +1955,13 @@
     t.url = $('#edit-task-url').value.trim();
     t.category = $('#edit-task-category').value.trim();
     t.customIcon = currentEditIcon;
+    // タグ・説明を保存
+    const tagsInput = $('#edit-task-tags')?.value.trim() || '';
+    t.tags = tagsInput ? tagsInput.split(/[,、\s]+/).map(x => x.replace(/^#/, '').trim()).filter(Boolean) : [];
+    t.description = $('#edit-task-description')?.value.trim() || '';
     const newNotifyTime = $('#edit-task-notify-time').value || '';
     if (newNotifyTime !== t.notifyTime) {
-      t.lastNotifiedDate = null; // 通知時刻が変更されたらリセット
+      t.lastNotifiedDate = null;
     }
     t.notifyTime = newNotifyTime;
     save(); syncNotifySchedules(); closeModal('edit-modal-overlay'); renderAll(); showToast('📝 保存しました');
@@ -2296,13 +2396,12 @@
     syncNotifySchedules();
 
     // FAB
+    // Bug#3 fix: Use click only to prevent double-fire on touch devices
     const fab = $('#fab-add');
     fab.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openAddSheet(); });
-    fab.addEventListener('touchend', e => { e.preventDefault(); openAddSheet(); });
     const calFab = $('#cal-fab-add');
     if (calFab) {
       calFab.addEventListener('click', e => { e.preventDefault(); openCalTaskModal(''); });
-      calFab.addEventListener('touchend', e => { e.preventDefault(); openCalTaskModal(''); });
     }
 
     // Modal closes
@@ -2354,8 +2453,8 @@
         openModal('general-memo-overlay');
         setTimeout(() => $('#general-memo-input').focus(), 300);
       };
+      // Bug#3 fix: Use click only to prevent double-fire on touch devices
       memoFab.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openNewMemo(); });
-      memoFab.addEventListener('touchend', e => { e.preventDefault(); openNewMemo(); });
     }
 
     const genMemoClose = $('#general-memo-close');
@@ -2444,7 +2543,7 @@
         }
         closeModal('edit-memo-overlay');
         renderMemoHistory();
-        showToast('�️ メモを削除しました');
+        showToast('🗑️ メモを削除しました');
       });
     }
 
@@ -2581,11 +2680,22 @@
       }
       renderCalendar();
     });
-    $('#cal-mode-toggle').addEventListener('click', () => {
-      if (state.calMode === 'month') state.calMode = 'list';
-      else if (state.calMode === 'list') state.calMode = 'year';
-      else state.calMode = 'month';
-      renderCalendar();
+    // Calendar mode dropdown
+    $('#cal-mode-toggle').addEventListener('click', (e) => {
+      e.stopPropagation();
+      $('#cal-mode-dropdown').classList.toggle('open');
+    });
+    document.querySelectorAll('.cal-mode-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        state.calMode = opt.dataset.mode;
+        $('#cal-mode-dropdown').classList.remove('open');
+        renderCalendar();
+      });
+    });
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      const dd = $('#cal-mode-dropdown');
+      if (dd && !dd.contains(e.target)) dd.classList.remove('open');
     });
 
     // Settings - Background
@@ -2700,7 +2810,7 @@
       const i = +del.dataset.i;
       state.settings.customMessages.splice(i, 1); save();
       renderCustomMessages();
-      showToast('�️ メッセージを削除しました');
+      showToast('🗑️ メッセージを削除しました');
     });
 
     // Settings - Task size
@@ -2905,15 +3015,14 @@
     qsCloseAllPanels();
   }
 
-  // Tag — prepend # at beginning
+  // Tag — add to qsState tags array
   function qsAddTag() {
     qsCloseCat(); qsCloseAllPanels();
     const input = document.getElementById('add-title');
-    const val = input.value;
-    // Always prepend #tagname at the beginning
+    const val = input.value.trim();
+    // 名前に#があればそのまま入力可能にする
     input.value = '#' + val;
     input.focus();
-    // Position cursor after the #
     input.setSelectionRange(1, 1);
   }
 
@@ -2929,9 +3038,13 @@
     const gridEl = document.getElementById('qs-emoji-grid');
     if (!gridEl) return;
     const emojis = EMOJI_CATS[qsEmojiCat] || [];
+    // Bug#5 fix: Use data attributes + event delegation instead of inline onclick
     gridEl.innerHTML = emojis.map(e =>
-      `<span class="qs-emoji-pick" onclick="qsPickEmoji('${e}')">${e}</span>`
+      `<span class="qs-emoji-pick" data-emoji="${e}">${e}</span>`
     ).join('');
+    gridEl.querySelectorAll('.qs-emoji-pick').forEach(el => {
+      el.addEventListener('click', () => qsPickEmoji(el.dataset.emoji));
+    });
   }
   function qsSwitchEmojiCat(cat) {
     qsEmojiCat = cat;
@@ -2964,11 +3077,18 @@
     let h = '';
     [...cats].forEach(cat => {
       const icon = catIcons[cat] || '📁';
-      h += `<div class="cat-item" onclick="qsSelectCat('${icon}','${escapeHtml(cat)}')">\
+      // Bug#6 fix: Use data attributes instead of inline onclick to avoid single-quote escaping issues
+      h += `<div class="cat-item" data-cat-icon="${escapeHtml(icon)}" data-cat-name="${escapeHtml(cat)}">\
 <span class="cat-item-icon">${icon}</span>${escapeHtml(cat)}</div>`;
     });
-    h += `<div class="cat-item cat-add-item" onclick="openNewCat()"><span class="cat-item-icon">＋</span>カテゴリを追加する</div>`;
+    h += `<div class="cat-item cat-add-item" data-action="new-cat"><span class="cat-item-icon">＋</span>カテゴリを追加する</div>`;
     popup.innerHTML = h;
+    // Bug#6 fix: Event delegation for category selection
+    popup.querySelectorAll('.cat-item[data-cat-name]').forEach(el => {
+      el.addEventListener('click', () => qsSelectCat(el.dataset.catIcon, el.dataset.catName));
+    });
+    const newCatBtn = popup.querySelector('[data-action="new-cat"]');
+    if (newCatBtn) newCatBtn.addEventListener('click', () => openNewCat());
   }
   function qsSelectCat(icon, name) {
     qsState.category = name;
@@ -2998,7 +3118,8 @@
     }
     closeNewCat();
   }
-  function selectNewCatColor(el) {
+  // Bug#8 fix: Accept the color argument properly
+  function selectNewCatColor(el, color) {
     document.querySelectorAll('.newcat-color').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
   }
@@ -3020,17 +3141,22 @@
   function qsSubmit() {
     const name = document.getElementById('add-title').value.trim();
     if (!name) { document.getElementById('add-title').focus(); return; }
-    // Parse frequency from repeat setting
-    let freq = '毎日', freqCount = null;
+    // Bug#1+#11 fix: Parse frequency AND timing from repeat setting
+    let freq = '毎日', freqCount = null, timing = 'いつでも';
     if (qsState.repeat === '週3回') { freq = '週'; freqCount = 3; }
-    else if (qsState.repeat === '平日のみ') { freq = '毎日'; }
-    else if (qsState.repeat === '週末のみ') { freq = '週'; freqCount = 2; }
-    else if (qsState.repeat === '' || !qsState.repeat) { freq = '毎日'; }
+    else if (qsState.repeat === '平日のみ') { freq = '毎日'; timing = '平日のみ'; }
+    else if (qsState.repeat === '週末のみ') { freq = '毎日'; timing = '週末のみ'; }
+    else if (qsState.repeat === '毎日') { freq = '毎日'; }
+
+    // タグを名前から分離
+    const extractedTags = name.match(/#[^\s#]+/g) || [];
+    const cleanName = name.replace(/#[^\s#]+/g, '').trim();
+    const allTags = [...new Set([...extractedTags.map(t => t.replace(/^#/, '')), ...(qsState.tags || [])])];
 
     state.tasks.push({
-      id: genId(), name,
+      id: genId(), name: cleanName || name,
       emoji: qsState.emoji || '',
-      timing: 'いつでも',
+      timing: timing,
       frequency: freq,
       freqCount: freqCount,
       url: '',
@@ -3040,6 +3166,8 @@
       notifyTime: '',
       lastNotifiedDate: null,
       priority: qsState.priority || '',
+      tags: allTags,
+      description: '',
     });
     if (qsState.category) saveCategory(qsState.category);
     resetCelebration(); save(); syncNotifySchedules();
@@ -3081,28 +3209,39 @@
     const allCount = document.getElementById('drawer-all-count');
     if (allCount) allCount.textContent = state.tasks.length;
 
-    // Tags: extract all tags from all task names
+    // Tags: from task.tags field
     const tagsEl = document.getElementById('drawer-tags');
     if (tagsEl) {
       const allTags = new Set();
       state.tasks.forEach(t => {
-        const tags = t.name.match(/#[^\s#]+/g) || [];
-        tags.forEach(tag => allTags.add(tag));
+        (t.tags || []).forEach(tag => allTags.add(tag));
       });
       if (allTags.size === 0) {
         tagsEl.innerHTML = '<div class="drawer-empty">タグはまだありません</div>';
       } else {
         tagsEl.innerHTML = [...allTags].map(tag => {
-          const count = state.tasks.filter(t => t.name.includes(tag)).length;
+          const count = state.tasks.filter(t => (t.tags || []).includes(tag)).length;
           const isActive = state.activeFilter === 'tag:' + tag;
           return `<div class="drawer-item${isActive ? ' active' : ''}" data-drawer-filter="tag:${escapeHtml(tag)}">
             <span class="drawer-item-icon">🏷️</span>
-            <span class="drawer-item-label">${escapeHtml(tag)}</span>
+            <span class="drawer-item-label">${escapeHtml('#' + tag)}</span>
             <span class="drawer-item-count">${count}</span>
           </div>`;
         }).join('');
       }
     }
+
+    // Priority counts
+    const priCount = (match) => state.tasks.filter(t => {
+      const p = (t.priority || '').toLowerCase();
+      return match(p);
+    }).length;
+    const hc = document.getElementById('drawer-pri-high-count');
+    const mc = document.getElementById('drawer-pri-med-count');
+    const lc = document.getElementById('drawer-pri-low-count');
+    if (hc) hc.textContent = priCount(p => p === '高' || p === 'high' || p === '❗');
+    if (mc) mc.textContent = priCount(p => p === '中' || p === 'medium' || p === '❕');
+    if (lc) lc.textContent = priCount(p => p === '低' || p === 'low' || p === '❓');
 
     // Categories
     const catsEl = document.getElementById('drawer-categories');
@@ -3110,20 +3249,47 @@
       const cats = [...new Set(state.tasks.map(t => t.category).filter(Boolean))];
       const savedCats = (state.savedCategories || []).filter(c => !cats.includes(c));
       const allCats = [...cats, ...savedCats];
+      let catHtml = '<div class="drawer-section-title">📁 カテゴリー <span class="drawer-hint">長押しで削除</span></div>';
       if (allCats.length === 0) {
-        catsEl.innerHTML = '<div class="drawer-empty">カテゴリはありません</div>';
+        catHtml += '<div class="drawer-empty">カテゴリーはありません</div>';
       } else {
-        catsEl.innerHTML = allCats.map(cat => {
+        catHtml += allCats.map(cat => {
           const count = state.tasks.filter(t => t.category === cat).length;
           const isActive = state.activeFilter === cat;
           const catColor = getCategoryColor(cat);
-          return `<div class="drawer-item${isActive ? ' active' : ''}" data-drawer-filter="${escapeHtml(cat)}">
+          return `<div class="drawer-item${isActive ? ' active' : ''}" data-drawer-filter="${escapeHtml(cat)}" data-cat-name="${escapeHtml(cat)}">
             <span class="drawer-item-icon" ${catColor ? `style="color:${catColor}"` : ''}>📂</span>
             <span class="drawer-item-label">${escapeHtml(cat)}</span>
             ${count > 0 ? `<span class="drawer-item-count">${count}</span>` : ''}
           </div>`;
         }).join('');
       }
+      catsEl.innerHTML = catHtml;
+
+      // Category long-press delete
+      catsEl.querySelectorAll('[data-cat-name]').forEach(item => {
+        let lpTimer = null;
+        const startLP = () => {
+          lpTimer = setTimeout(() => {
+            const catName = item.dataset.catName;
+            if (confirm(`カテゴリー「${catName}」を削除しますか？\n（タスク自体は削除されません）`)) {
+              state.tasks.forEach(t => { if (t.category === catName) t.category = ''; });
+              state.savedCategories = (state.savedCategories || []).filter(c => c !== catName);
+              state.categoryOrder = (state.categoryOrder || []).filter(c => c !== catName);
+              if (state.activeFilter === catName) state.activeFilter = 'all';
+              save(); renderAll(); renderDrawerContent();
+              showToast(`🗑️ カテゴリー「${catName}」を削除しました`);
+            }
+          }, 600);
+        };
+        const cancelLP = () => { clearTimeout(lpTimer); };
+        item.addEventListener('touchstart', startLP, { passive: true });
+        item.addEventListener('touchend', cancelLP);
+        item.addEventListener('touchcancel', cancelLP);
+        item.addEventListener('mousedown', startLP);
+        item.addEventListener('mouseup', cancelLP);
+        item.addEventListener('mouseleave', cancelLP);
+      });
     }
 
     // Active state for "all"
