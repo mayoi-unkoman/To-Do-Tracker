@@ -18,10 +18,34 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style-base.css">
+  <link rel="stylesheet" href="style-components.css">
+  <link rel="stylesheet" href="style-features.css">
+  <link rel="stylesheet" href="style-quickadd.css">
 </head>
 
 <body>
+  <!-- ===== ボトムナビ テンプレート（4ビュー共通） ===== -->
+  <template id="bottom-nav-tpl">
+    <nav class="bottom-nav">
+      <button class="nav-btn" data-view="main-view">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <span>タスク</span>
+      </button>
+      <button class="nav-btn" data-view="calendar-view">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>カレンダー</span>
+      </button>
+      <button class="nav-btn" data-view="stats-view">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
+        <span>統計</span>
+      </button>
+      <button class="nav-btn" data-view="memo-view">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>メモ</span>
+      </button>
+    </nav>
+  </template>
   <div id="app">
 
     <!-- ===== メインビュー ===== -->
@@ -71,41 +95,7 @@
 
       <div class="task-list" id="task-list"></div>
 
-      <nav class="bottom-nav">
-        <button class="nav-btn active" data-view="main-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 11l3 3L22 4" />
-            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-          </svg>
-          <span>タスク</span>
-        </button>
-        <button class="nav-btn" data-view="calendar-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-          <span>カレンダー</span>
-        </button>
-        <button class="nav-btn" data-view="stats-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="12" width="4" height="9" rx="1" />
-            <rect x="10" y="7" width="4" height="14" rx="1" />
-            <rect x="17" y="3" width="4" height="18" rx="1" />
-          </svg>
-          <span>統計</span>
-        </button>
-        <button class="nav-btn" data-view="memo-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-          </svg>
-          <span>メモ</span>
-        </button>
-      </nav>
+      <div class="bottom-nav-slot"></div>
 
       <button class="fab" id="fab-add" aria-label="タスクを追加">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
@@ -220,41 +210,7 @@
         <div class="cal-list-content" id="cal-list-content"></div>
       </div>
 
-      <nav class="bottom-nav">
-        <button class="nav-btn" data-view="main-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 11l3 3L22 4" />
-            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-          </svg>
-          <span>タスク</span>
-        </button>
-        <button class="nav-btn active" data-view="calendar-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-          <span>カレンダー</span>
-        </button>
-        <button class="nav-btn" data-view="stats-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="12" width="4" height="9" rx="1" />
-            <rect x="10" y="7" width="4" height="14" rx="1" />
-            <rect x="17" y="3" width="4" height="18" rx="1" />
-          </svg>
-          <span>統計</span>
-        </button>
-        <button class="nav-btn" data-view="memo-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-          </svg>
-          <span>メモ</span>
-        </button>
-      </nav>
+      <div class="bottom-nav-slot"></div>
 
       <button class="fab" id="cal-fab-add" aria-label="予定を追加">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
@@ -319,47 +275,17 @@
         </div>
       </div>
 
-      <nav class="bottom-nav">
-        <button class="nav-btn" data-view="main-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 11l3 3L22 4" />
-            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-          </svg>
-          <span>タスク</span>
-        </button>
-        <button class="nav-btn" data-view="calendar-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-          <span>カレンダー</span>
-        </button>
-        <button class="nav-btn active" data-view="stats-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="12" width="4" height="9" rx="1" />
-            <rect x="10" y="7" width="4" height="14" rx="1" />
-            <rect x="17" y="3" width="4" height="18" rx="1" />
-          </svg>
-          <span>統計</span>
-        </button>
-        <button class="nav-btn" data-view="memo-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-          </svg>
-          <span>メモ</span>
-        </button>
-      </nav>
+      <div class="bottom-nav-slot"></div>
     </div>
 
     <!-- ===== クイック追加ボトムシート ===== -->
     <div class="add-overlay" id="add-overlay" onclick="if(event.target===this)closeAddSheet()">
       <div class="add-sheet">
         <input type="text" class="add-input" id="add-title" placeholder="何をしたいですか？">
+        <div class="add-extra-fields">
+          <input type="text" class="add-extra-input" id="add-tags-input" placeholder="#タグを追加（スペースで区切り）">
+          <textarea class="add-extra-textarea" id="add-memo-input" placeholder="補足メモ（任意）" rows="2"></textarea>
+        </div>
         <div class="add-selected-info" id="add-selected-info"></div>
 
         <!-- サブパネル: 日付 -->
@@ -407,6 +333,8 @@
             <div class="priority-item" onclick="qsSetRepeat('週3回')"><span class="priority-flag">3️⃣</span>週3回</div>
             <div class="priority-item" onclick="qsSetRepeat('週末のみ')"><span class="priority-flag">🌴</span>週末のみ（土・日）
             </div>
+            <div class="priority-item" onclick="qsSetRepeat('1日だけ')"><span class="priority-flag">☝️</span>1日だけ
+            </div>
             <div class="priority-item" onclick="qsSetRepeat('')" style="color:var(--text-dim)"><span
                 class="priority-flag">⚪</span>リピートなし</div>
           </div>
@@ -416,6 +344,14 @@
         <div class="add-panel" id="panel-emoji">
           <div class="qs-emoji-tabs" id="qs-emoji-tabs"></div>
           <div class="qs-emoji-grid" id="qs-emoji-grid"></div>
+        </div>
+
+        <!-- サブパネル: URL -->
+        <div class="add-panel" id="panel-url">
+          <div class="url-panel-content">
+            <input type="url" class="add-url-input" id="add-url-input" placeholder="https://example.com">
+            <button class="url-panel-ok" onclick="qsCloseAllPanels()">OK</button>
+          </div>
         </div>
 
         <!-- カテゴリポップアップ -->
@@ -456,6 +392,12 @@
               <path d="M3 11V9a4 4 0 014-4h14" />
               <polyline points="7 23 3 19 7 15" />
               <path d="M21 13v2a4 4 0 01-4 4H3" />
+            </svg>
+          </button>
+          <button class="add-tool-btn" id="tool-url" onclick="qsTogglePanel('url')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
             </svg>
           </button>
           <button class="add-tool-btn" id="tool-emoji" onclick="qsTogglePanel('emoji')">
@@ -546,6 +488,7 @@
             <div class="frequency-row">
               <label class="radio-chip"><input type="radio" name="frequency" value="毎日" checked><span>毎日</span></label>
               <label class="radio-chip"><input type="radio" name="frequency" value="週"><span>週○回</span></label>
+              <label class="radio-chip"><input type="radio" name="frequency" value="1日だけ"><span>1日だけ</span></label>
               <input type="number" id="freq-count" class="freq-input" min="1" max="7" value="3" style="display:none;">
             </div>
           </div>
@@ -623,6 +566,7 @@
             <div class="frequency-row">
               <label class="radio-chip"><input type="radio" name="edit-frequency" value="毎日"><span>毎日</span></label>
               <label class="radio-chip"><input type="radio" name="edit-frequency" value="週"><span>週○回</span></label>
+              <label class="radio-chip"><input type="radio" name="edit-frequency" value="1日だけ"><span>1日だけ</span></label>
               <input type="number" id="edit-freq-count" class="freq-input" min="1" max="7" value="3"
                 style="display:none;">
             </div>
@@ -888,41 +832,7 @@
       <div class="cal-content" id="memo-content">
         <div id="memo-history-list"></div>
       </div>
-      <nav class="bottom-nav">
-        <button class="nav-btn" data-view="main-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 11l3 3L22 4" />
-            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-          </svg>
-          <span>タスク</span>
-        </button>
-        <button class="nav-btn" data-view="calendar-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-          <span>カレンダー</span>
-        </button>
-        <button class="nav-btn" data-view="stats-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="12" width="4" height="9" rx="1" />
-            <rect x="10" y="7" width="4" height="14" rx="1" />
-            <rect x="17" y="3" width="4" height="18" rx="1" />
-          </svg>
-          <span>統計</span>
-        </button>
-        <button class="nav-btn active" data-view="memo-view">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-          </svg>
-          <span>メモ</span>
-        </button>
-      </nav>
+      <div class="bottom-nav-slot"></div>
       <button class="fab" id="fab-memo-add" aria-label="メモを追加">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
           stroke-linecap="round">
@@ -1004,7 +914,17 @@
   </div>
 
   <canvas id="img-canvas" style="display:none;"></canvas>
-  <script src="app.js"></script>
+  <!-- Split JS files (loaded in dependency order) -->
+  <script src="app-core.js"></script>
+  <script src="app-notifications.js"></script>
+  <script src="app-render.js"></script>
+  <script src="app-calendar.js"></script>
+  <script src="app-stats.js"></script>
+  <script src="app-events.js"></script>
+  <script src="app-settings.js"></script>
+  <script src="app-init.js"></script>
+  <script src="app-quickadd.js"></script>
+  <script src="app-drawer.js"></script>
 </body>
 
 </html>
