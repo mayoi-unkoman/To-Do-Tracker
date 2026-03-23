@@ -1,0 +1,791 @@
+﻿/* style-features.css - Feature-specific styles (memo, progress, notifications) */
+/* ---- Daily Progress Bar ---- */
+.daily-progress {
+  padding: 8px 16px;
+  margin: 0 8px 4px;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.progress-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.progress-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.progress-track {
+  height: 6px;
+  background: var(--bg-surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  width: 0;
+}
+
+.daily-progress.complete .progress-fill {
+  background: linear-gradient(90deg, var(--accent), #fbbf24);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.daily-progress.complete .progress-count {
+  color: var(--accent);
+}
+
+/* ---- Confetti Canvas ---- */
+#confetti-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 600;
+  pointer-events: none;
+  display: none;
+}
+
+/* ---- Memo ---- */
+.memo-textarea {
+  width: 100%;
+  min-height: 70px;
+  padding: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+  transition: border-color 0.2s;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+
+.memo-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.task-memo-line {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  padding: 2px 6px;
+  background: var(--accent-glow);
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
+}
+
+/* ---- Category Group ---- */
+.category-group {
+  margin-bottom: 8px;
+}
+
+.category-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 4px;
+  transition: var(--transition);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.category-group-header:hover {
+  background: var(--bg-card-hover);
+}
+
+.category-group-header::before {
+  content: '▼';
+  font-size: 0.6rem;
+  margin-right: 8px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.category-group.collapsed .category-group-header::before {
+  transform: rotate(-90deg);
+}
+
+.category-group-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  flex: 1;
+}
+
+.category-group-count {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.category-group-body {
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+
+.category-group.collapsed .category-group-body {
+  max-height: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- Drag Handle ---- */
+.drag-handle {
+  font-size: 1rem;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 0 6px;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.drag-handle:hover {
+  opacity: 1;
+}
+
+.task-item.dragging {
+  opacity: 0.4;
+  border-color: var(--accent);
+}
+
+.task-item.drag-over {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* ---- Task Opacity ---- */
+.task-item {
+  opacity: var(--task-opacity, 1);
+}
+
+/* ---- Action Cell Separators ---- */
+.task-action-cell {
+  border-left: 1px solid var(--border);
+  padding-left: 8px;
+  margin-left: 4px;
+}
+
+.task-action-cell:first-child {
+  border-left: none;
+  padding-left: 0;
+  margin-left: 0;
+}
+
+/* ---- Memo Button ---- */
+.memo-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  line-height: 1;
+}
+
+.memo-btn.memo-empty {
+  opacity: 0.3;
+  filter: grayscale(0.8);
+}
+
+.memo-btn.memo-has {
+  opacity: 1;
+  filter: none;
+}
+
+.memo-btn:hover,
+.memo-btn:active {
+  opacity: 1;
+  filter: none;
+  background: var(--accent-glow);
+}
+
+/* ---- Memo History View ---- */
+.view-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  padding: 16px 16px 8px;
+}
+
+.memo-group {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  margin: 8px 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.memo-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: var(--transition);
+}
+
+.memo-group-header:hover {
+  background: var(--bg-card-hover);
+}
+
+.memo-group-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.memo-group.collapsed .memo-group-body {
+  display: none;
+}
+
+.memo-group-body {
+  padding: 0 12px 12px;
+}
+
+.memo-history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.memo-history-item:last-of-type {
+  border-bottom: none;
+}
+
+.memo-date {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  min-width: 36px;
+  flex-shrink: 0;
+}
+
+.memo-text {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.memo-del {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.memo-del:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.memo-add-btn {
+  margin-top: 8px;
+  display: block;
+  width: 100%;
+}
+
+/* ---- Random BG List ---- */
+.bg-multi-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.bg-multi-item {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.bg-multi-thumb {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+}
+
+.bg-multi-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* ---- Toggle Label ---- */
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+/* ---- Detail Cat Group ---- */
+.detail-cat-group {
+  margin: 8px 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.detail-cat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-card-hover);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+.detail-cat-group.collapsed .detail-item {
+  display: none;
+}
+
+.detail-link {
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.detail-link:hover {
+  opacity: 0.7;
+}
+
+/* ---- Memo Textarea ---- */
+.memo-textarea {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 10px;
+  font-size: 0.85rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+/* ---- Calendar Events in Task View ---- */
+.calendar-events-section {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.cal-events-header {
+  background: rgba(var(--accent-rgb, 74, 222, 128), 0.08);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.cal-events-body {
+  padding: 4px 0;
+}
+
+.cal-event-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  margin: 6px 0;
+  border-left: 3px solid var(--accent);
+}
+
+.cal-event-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.cal-event-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cal-event-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.cal-event-timing {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.cal-event-link {
+  font-size: 1rem;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+/* ---- Memo Sections (categorized) ---- */
+.memo-section {
+  margin-bottom: 16px;
+}
+
+.memo-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.memo-section-count {
+  margin-left: auto;
+  background: var(--bg-card);
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.memo-history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.memo-date {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  min-width: 32px;
+  flex-shrink: 0;
+}
+
+.memo-task-label {
+  font-size: 0.75rem;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.memo-text {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memo-del {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: var(--transition);
+}
+
+.memo-del:hover {
+  opacity: 1;
+  color: #f87171;
+}
+
+/* ---- Collapsible Memo Cards ---- */
+.memo-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  margin: 6px 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  transition: var(--transition);
+}
+
+.memo-card:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.memo-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.memo-card-title {
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memo-card-arrow {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.memo-card-body {
+  padding: 0 14px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.memo-card-text {
+  font-size: 0.82rem;
+  color: var(--text-secondary, #b0b0b0);
+  line-height: 1.6;
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---- Scheduled Task Delete Button ---- */
+.scheduled-del-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  margin-left: auto;
+  opacity: 0.5;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.scheduled-del-btn:hover {
+  opacity: 1;
+  color: #f87171;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ---- Form Actions Row ---- */
+.form-actions-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.form-actions-row .btn-delete {
+  flex: 1;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.form-actions-row .btn-delete:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.form-actions-row .btn-submit {
+  flex: 2;
+}
+
+/* ---- Filter Chip Styles ---- */
+/* ---- Filter Edit Mode ---- */
+.filter-chip.edit-mode {
+  position: relative;
+  padding-right: 22px;
+}
+
+.filter-chip.wobble {
+  animation: wobble 0.3s ease-in-out infinite alternate;
+}
+
+@keyframes wobble {
+  0% {
+    transform: rotate(-1deg);
+  }
+
+  100% {
+    transform: rotate(1deg);
+  }
+}
+
+.filter-del {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: rgba(239, 68, 68, 0.9);
+  color: #fff;
+  font-size: 0.6rem;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 2;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.filter-done-btn {
+  background: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 700;
+  border: none;
+  animation: none !important;
+}
+
+/* ---- iOS Long-press Prevention ---- */
+.filter-chip,
+.task-item,
+.memo-card {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---- Task Info min-width fix ---- */
+.task-info {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ---- Task Label overflow fix ---- */
+.task-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline;
+}
+
+/* ---- In-App Notification Banner ---- */
+.notify-banner {
+  position: fixed;
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 280px;
+  max-width: 90vw;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 16px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 10000;
+  transition: top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  backdrop-filter: blur(12px);
+}
+
+.notify-banner.show {
+  top: env(safe-area-inset-top, 12px);
+}
+
+.notify-banner-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.notify-banner-text {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+/* ---- Task Highlight (iOS Shortcut連携) ---- */
+.task-item.task-highlight {
+  animation: taskHighlight 3s ease-out forwards;
+}
+
+@keyframes taskHighlight {
+  0% {
+    background: rgba(249, 115, 22, 0.35);
+    border-color: rgba(249, 115, 22, 0.5);
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.2);
+  }
+
+  30% {
+    background: rgba(249, 115, 22, 0.25);
+    border-color: rgba(249, 115, 22, 0.35);
+    box-shadow: 0 0 12px rgba(249, 115, 22, 0.15);
+  }
+
+  100% {
+    background: var(--bg-card);
+    border-color: var(--border);
+    box-shadow: none;
+  }
+}
+
