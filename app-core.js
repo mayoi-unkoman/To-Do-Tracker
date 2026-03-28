@@ -158,6 +158,8 @@ function getTasksForDate(ds) {
   return state.tasks.filter(t => {
     // 1日だけタスク: createdDateの日のみ表示
     if (t.frequency === '1日だけ') return t.createdDate === ds;
+    // カレンダーカテゴリ: createdDateの日のみ表示（日付全体反映バグ修正）
+    if (t.category === 'カレンダー') return t.createdDate === ds;
     // 通常タスク: 作成日以降すべて
     return !t.createdDate || t.createdDate <= ds;
   });
@@ -270,11 +272,15 @@ function processScheduledTasks() {
   let changed = false;
   state.scheduledTasks.forEach(st => {
     if (!st.addedToTasks) {
+      // 重複チェック: 同じscheduledIdのタスクが既に存在する場合スキップ
+      const exists = state.tasks.some(t => t.scheduledId === st.id);
+      if (exists) { st.addedToTasks = true; changed = true; return; }
       state.tasks.push({
         id: genId(), name: st.name, emoji: st.emoji || '',
         timing: st.timing || 'いつでも', frequency: '1日だけ', freqCount: null,
         url: st.url || '', category: 'カレンダー', createdDate: st.date,
         customIcon: null, notifyTime: st.notifyTime || '',
+        scheduledId: st.id, tags: [], description: st.memo || '',
       });
       st.addedToTasks = true; changed = true;
     }
