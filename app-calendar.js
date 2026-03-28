@@ -129,10 +129,10 @@ function renderListCalendar(y, m) {
     const dayLabel = WEEKDAYS[date.getDay()];
     const isToday = k === tk;
     const tasks = getTasksForDate(k).filter(t => t.category === 'カレンダー');
-    const scheduled = state.scheduledTasks.filter(st => st.date === k);
+    // scheduledTasks are already in tasks via processScheduledTasks
     const rec = state.records[k] || {};
 
-    if (tasks.length === 0 && scheduled.length === 0) continue; // Skip empty days
+    if (tasks.length === 0) continue; // Skip empty days
 
     html += `<div class="cal-list-day${isToday ? ' today' : ''}">`;
     html += `<div class="cal-list-day-header">`;
@@ -142,14 +142,7 @@ function renderListCalendar(y, m) {
     html += `</div>`;
     html += `<div class="cal-list-day-items">`;
 
-    // Scheduled events
-    scheduled.forEach(st => {
-      html += `<div class="cal-list-item cal-list-scheduled" data-date="${k}">`;
-      html += `<span class="cal-list-item-icon">${st.emoji || '📅'}</span>`;
-      html += `<span class="cal-list-item-name">${escapeHtml(st.name)}</span>`;
-      if (st.timing && st.timing !== 'いつでも') html += `<span class="cal-list-item-time">${escapeHtml(st.timing)}</span>`;
-      html += `</div>`;
-    });
+    // Scheduled events are already converted to tasks via processScheduledTasks
 
     // Tasks
     tasks.forEach(t => {
@@ -239,7 +232,8 @@ function openDayDetail(dateStr) {
     tasks.forEach(t => {
       const done = isCompleted(rec[t.id]);
       const memo = getTaskMemo(t.id, dateStr);
-      html += `<div class="detail-item ${done ? 'done' : ''}" data-detail-task="${t.id}" style="cursor:pointer">${t.emoji || ''} ${escapeHtml(t.name)} <span class="detail-check${done ? '' : ' dim'}" data-detail-check="${t.id}">${done ? '✅' : '○'}</span>${memo ? `<div class="task-memo-line">📝 ${escapeHtml(memo)}</div>` : ''}</div>`;
+      const isCalTask = t.category === 'カレンダー';
+      html += `<div class="detail-item ${done ? 'done' : ''}" data-detail-task="${t.id}" ${isCalTask ? `data-cal-task-id="${t.id}"` : ''} style="cursor:pointer">${t.emoji || ''} ${escapeHtml(t.name)} <span class="detail-check${done ? '' : ' dim'}" data-detail-check="${t.id}">${done ? '✅' : '○'}</span>${isCalTask ? `<button class="scheduled-del-btn" data-del-task-id="${t.id}" type="button" title="削除">✕</button>` : ''}${memo ? `<div class="task-memo-line">📝 ${escapeHtml(memo)}</div>` : ''}</div>`;
     });
   }
   if (!scheduled.length && !tasks.length) html = '<p class="empty-sub" style="padding:20px;text-align:center;">この日のデータはありません</p>';
@@ -296,6 +290,42 @@ function openDayDetail(dateStr) {
       closeModal('day-detail-overlay');
       openDayDetail(dateStr);
     });
+  });
+  // カレンダータスク削除ボタン
+  $('#day-detail-content').querySelectorAll('[data-del-task-id]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const taskId = btn.dataset.delTaskId;
+      // tasksから削除
+      const task = state.tasks.find(t => t.id === taskId);
+      state.tasks = state.tasks.filter(t => t.id !== taskId);
+      // scheduledTasksからも削除（scheduledId連携）
+      if (task && task.scheduledId) {
+        state.scheduledTasks = state.scheduledTasks.filter(s => s.id !== task.scheduledId);
+      }
+      save();
+      closeModal('day-detail-overlay');
+      renderCalendar(); renderAll();
+      showToast('🗑️ タスクを削除しました');
+    });
+  });
+  // カレンダータスク長押し→編集
+  $('#day-detail-content').querySelectorAll('[data-cal-task-id]').forEach(item => {
+    let lpTimer = null;
+    const startLP = () => {
+      lpTimer = setTimeout(() => {
+        closeModal('day-detail-overlay');
+        const taskId = item.dataset.calTaskId;
+        openEditModal(taskId);
+      }, 500);
+    };
+    const cancelLP = () => { clearTimeout(lpTimer); };
+    item.addEventListener('mousedown', startLP);
+    item.addEventListener('mouseup', cancelLP);
+    item.addEventListener('mouseleave', cancelLP);
+    item.addEventListener('touchstart', startLP, { passive: true });
+    item.addEventListener('touchend', cancelLP);
+    item.addEventListener('touchcancel', cancelLP);
   });
   $('#day-detail-add-btn').onclick = () => {
     closeModal('day-detail-overlay');
