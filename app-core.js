@@ -156,8 +156,6 @@ function getCompletedAt(val) { return (val && val.completedAt) ? val.completedAt
 // ---- Task Queries ----
 function getTasksForDate(ds) {
   return state.tasks.filter(t => {
-    // 1日だけタスク: createdDateの日のみ表示
-    if (t.frequency === '1日だけ') return t.createdDate === ds;
     // カレンダーカテゴリ: createdDateの日のみ表示（日付全体反映バグ修正）
     if (t.category === 'カレンダー') return t.createdDate === ds;
     // 通常タスク: 作成日以降すべて
@@ -184,7 +182,7 @@ function isTaskActiveOnDate(task, dateObj) {
 }
 
 function calcGlobalStreak() {
-  const dt = state.tasks.filter(t => t.frequency === '毎日');
+  const dt = state.tasks.filter(t => t.frequency === '毎日' && t.category !== 'カレンダー');
   if (!dt.length) return 0;
   let s = 0, d = new Date(), tk = formatDate(d);
   const tr = state.records[tk] || {}, ta = dt.filter(t => !t.createdDate || t.createdDate <= tk);
@@ -277,7 +275,7 @@ function processScheduledTasks() {
       if (exists) { st.addedToTasks = true; changed = true; return; }
       state.tasks.push({
         id: genId(), name: st.name, emoji: st.emoji || '',
-        timing: st.timing || 'いつでも', frequency: '1日だけ', freqCount: null,
+        timing: st.timing || 'いつでも', frequency: '毎日', freqCount: null,
         url: st.url || '', category: 'カレンダー', createdDate: st.date,
         customIcon: null, notifyTime: st.notifyTime || '',
         scheduledId: st.id, tags: [], description: st.memo || '',
@@ -303,21 +301,38 @@ function populateGlobalCategoryList() {
       });
     }
   });
-  if (state.savedCategories) state.savedCategories.forEach(c => cats.add(c));
+  if (state.savedCategories) state.savedCategories.forEach(c => {
+    if (typeof c === 'string') cats.add(c);
+    else if (typeof c === 'object' && c.name) cats.add(c.name);
+  });
   dl.innerHTML = [...cats].map(c => `<option value="${escapeHtml(c)}">`).join('');
   // Also update memo-category-list
   const mdl = $('#memo-category-list');
   if (mdl) mdl.innerHTML = dl.innerHTML;
 }
 
-function saveCategory(cat) {
+function saveCategory(cat, color) {
   if (!cat || !cat.trim()) return;
   cat = cat.trim();
   if (!state.savedCategories) state.savedCategories = [];
-  if (!state.savedCategories.includes(cat)) {
-    state.savedCategories.push(cat);
-    save();
+  // 既存チェック（文字列とオブジェクト両対応）
+  const exists = state.savedCategories.some(c =>
+    (typeof c === 'string' && c === cat) || (typeof c === 'object' && c.name === cat)
+  );
+  if (exists) {
+    // 色の更新
+    if (color) {
+      state.savedCategories = state.savedCategories.map(c => {
+        if (typeof c === 'string' && c === cat) return { name: cat, color };
+        if (typeof c === 'object' && c.name === cat) return { ...c, color };
+        return c;
+      });
+      save();
+    }
+    return;
   }
+  state.savedCategories.push(color ? { name: cat, color } : cat);
+  save();
 }
 
 // ---- Image Processing ----
