@@ -225,7 +225,10 @@ function closeNewCat() {
 function saveNewCat() {
   const name = document.getElementById('newcat-name').value.trim();
   if (name) {
-    saveCategory(name);
+    // 選択された色を取得
+    const selectedColor = document.querySelector('.newcat-color.selected');
+    const color = selectedColor ? selectedColor.dataset.color || '' : '';
+    saveCategory(name, color || undefined);
     qsState.category = name;
     qsUpdateInfo();
     qsRenderCatPopup();
@@ -261,7 +264,6 @@ function qsSubmit() {
   else if (qsState.repeat === '平日のみ') { freq = '毎日'; timing = '平日のみ'; }
   else if (qsState.repeat === '週末のみ') { freq = '毎日'; timing = '週末のみ'; }
   else if (qsState.repeat === '毎日') { freq = '毎日'; }
-  else if (qsState.repeat === '1日だけ') { freq = '1日だけ'; }
 
   // タグを独立フィールドから取得
   const tagsInput = document.getElementById('add-tags-input');
@@ -292,8 +294,22 @@ function qsSubmit() {
     description: description,
   });
   if (qsState.category) saveCategory(qsState.category);
+  // カレンダーカテゴリの場合、scheduledTasksにも同期追加
+  if ((qsState.category || '') === 'カレンダー') {
+    const newTask = state.tasks[state.tasks.length - 1];
+    const schId = genId();
+    state.scheduledTasks.push({
+      id: schId, date: newTask.createdDate, name: newTask.name,
+      emoji: newTask.emoji, timing: newTask.timing,
+      url: newTask.url, category: 'カレンダー',
+      notifyTime: '', memo: newTask.description || '',
+      addedToTasks: true,
+    });
+    newTask.scheduledId = schId;
+  }
   resetCelebration(); save(); syncNotifySchedules();
   closeAddSheet();
+  if (typeof renderCalendar === 'function') renderCalendar();
   renderAll();
   showToast('✨ タスクを追加しました');
 }
